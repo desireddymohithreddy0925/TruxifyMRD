@@ -6,6 +6,14 @@ class FreightFairController extends ChangeNotifier {
   int currentTab = 0;
   int ordersTabIndex = 0;
   RouteDraft? pendingRouteDraft;
+  bool _isDarkMode = false;
+
+  bool get isDarkMode => _isDarkMode;
+
+  void toggleDarkMode() {
+    _isDarkMode = !_isDarkMode;
+    notifyListeners();
+  }
 
   void setTab(int index) {
     if (currentTab == index) return;

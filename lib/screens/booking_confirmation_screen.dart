@@ -102,7 +102,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> w
                   ],
                 ),
                 const SizedBox(height: 6),
-                Text('Released only on delivery', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.secondaryText)),
+                Text('Released only on delivery', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context))),
               ],
             ),
           ),
@@ -147,7 +147,7 @@ class _SummaryRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 88,
-            child: Text(label, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.secondaryText)),
+            child: Text(label, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context))),
           ),
           Expanded(child: Text(value, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700))),
         ],
@@ -183,7 +183,7 @@ class _SuccessPanel extends StatelessWidget {
                 const SizedBox(height: 10),
                 Text('Booking Confirmed! 🎉', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 4),
-                Text('Order ID: #FF20241205', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.secondaryText)),
+                Text('Order ID: #FF20241205', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context))),
               ],
             ),
           ),

@@ -58,11 +58,13 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
                   child: Container(
                     decoration: BoxDecoration(
                       border: Border.all(
-                        color: isSelected ? FreightFairColors.accent : Colors.grey.shade300,
+                        color: isSelected ? FreightFairColors.accent : (Theme.of(context).brightness == Brightness.dark ? FreightFairColors.darkBorder : FreightFairColors.border),
                         width: isSelected ? 2 : 1,
                       ),
                       borderRadius: BorderRadius.circular(12),
-                      color: isSelected ? FreightFairColors.accentLight.withValues(alpha: 0.3) : Colors.white,
+                      color: isSelected
+                          ? FreightFairColors.accent.withValues(alpha: 0.08)
+                          : Theme.of(context).colorScheme.surface,
                     ),
                     padding: const EdgeInsets.all(14),
                     child: Row(
@@ -91,7 +93,7 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
                               Text(
                                 address['address'],
                                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: FreightFairColors.secondaryText,
+                                      color: FreightFairColors.adaptiveSecondaryText(context),
                                     ),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,

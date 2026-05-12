@@ -66,7 +66,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 6),
               Text(
                 'Sign in to manage your freight bookings offline with mock data.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.secondaryText),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context)),
               ),
               const SizedBox(height: 28),
               AnimatedSwitcher(
@@ -114,7 +114,7 @@ class _LoginScreenState extends State<LoginScreen> {
               Expanded(
                 child: Text(
                   'Mock verification is enabled. Use 1234 on the next screen.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.secondaryText),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context)),
                 ),
               ),
             ],

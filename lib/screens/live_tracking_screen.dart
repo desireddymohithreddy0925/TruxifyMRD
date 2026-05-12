@@ -46,9 +46,9 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> with SingleTick
       builder: (context) {
         return Container(
           padding: const EdgeInsets.all(20),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -62,7 +62,7 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> with SingleTick
               Text(
                 'Your truck is near Vadodara, expected by 4:30 PM today',
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: FreightFairColors.secondaryText),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context)),
               ),
               const SizedBox(height: 20),
               const SizedBox(
@@ -83,9 +83,9 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> with SingleTick
       builder: (context) {
         return Container(
           padding: const EdgeInsets.all(20),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -95,7 +95,7 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> with SingleTick
               const SizedBox(height: 10),
               Text('Calling ${mockLiveTrackers[_selectedTruckIndex].driver}', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
               const SizedBox(height: 4),
-              Text(mockLiveTrackers[_selectedTruckIndex].truckNumber, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.secondaryText)),
+              Text(mockLiveTrackers[_selectedTruckIndex].truckNumber, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context))),
               const SizedBox(height: 18),
               PrimaryButton(label: 'End Call', onPressed: () => Navigator.of(context).pop()),
             ],
@@ -116,9 +116,9 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> with SingleTick
           padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
           child: Container(
             padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -155,9 +155,9 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> with SingleTick
       builder: (context) {
         return Container(
           padding: const EdgeInsets.all(20),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -166,7 +166,7 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> with SingleTick
               const SizedBox(height: 10),
               Text('Cancellation fee ₹680', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
               const SizedBox(height: 6),
-              Text('This fee is charged for cancelling after assignment.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.secondaryText)),
+              Text('This fee is charged for cancelling after assignment.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context))),
               const SizedBox(height: 18),
               PrimaryButton(label: 'Confirm Cancel', backgroundColor: FreightFairColors.error, onPressed: () => Navigator.of(context).pop()),
             ],
@@ -379,10 +379,10 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> with SingleTick
               maxChildSize: 0.78,
               builder: (context, scrollController) {
                 return Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                    boxShadow: [BoxShadow(color: Color(0x20000000), blurRadius: 16, offset: Offset(0, -2))],
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                    boxShadow: const [BoxShadow(color: Color(0x20000000), blurRadius: 16, offset: Offset(0, -2))],
                   ),
                   child: SingleChildScrollView(
                     controller: scrollController,
@@ -422,11 +422,11 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> with SingleTick
                           ],
                         ),
                         const SizedBox(height: 6),
-                        Text(truck.truckNumber, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.secondaryText)),
+                        Text(truck.truckNumber, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context))),
                         const SizedBox(height: 6),
                         Text('ETA: ${truck.eta}', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
                         const SizedBox(height: 6),
-                        Text('Current location: ${truck.location}', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.secondaryText)),
+                        Text('Current location: ${truck.location}', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context))),
                         const SizedBox(height: 18),
                         SingleChildScrollView(
                           scrollDirection: Axis.horizontal,

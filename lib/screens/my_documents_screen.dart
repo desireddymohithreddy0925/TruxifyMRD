@@ -54,9 +54,9 @@ class MyDocumentsScreen extends StatelessWidget {
                 final doc = documents[index];
                 return Container(
                   decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade300),
+                    border: Border.all(color: (Theme.of(context).brightness == Brightness.dark ? FreightFairColors.darkBorder : FreightFairColors.border)),
                     borderRadius: BorderRadius.circular(12),
-                    color: Colors.white,
+                    color: Theme.of(context).colorScheme.surface,
                   ),
                   padding: const EdgeInsets.all(14),
                   child: Row(

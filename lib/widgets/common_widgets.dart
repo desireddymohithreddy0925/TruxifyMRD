@@ -27,7 +27,7 @@ class SectionHeader extends StatelessWidget {
               title,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: titleColor ?? const Color(0xFF1A1A1A),
+                    color: titleColor,
                   ),
             ),
           ),
@@ -38,7 +38,7 @@ class SectionHeader extends StatelessWidget {
   }
 }
 
-BoxDecoration elevatedSurfaceDecoration({Color color = Colors.white, BorderRadius? borderRadius}) {
+BoxDecoration elevatedSurfaceDecoration({Color? color, BorderRadius? borderRadius}) {
   return BoxDecoration(
     color: color,
     borderRadius: borderRadius ?? BorderRadius.circular(16),
@@ -120,18 +120,26 @@ class StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(14),
-        decoration: elevatedSurfaceDecoration(color: FreightFairColors.accentLight),
+        decoration: elevatedSurfaceDecoration(
+          color: isDark ? FreightFairColors.darkAccentLight : FreightFairColors.accentLight,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: FreightFairColors.accentDark, size: 20),
+            Icon(icon, color: isDark ? FreightFairColors.accent : FreightFairColors.accentDark, size: 20),
             const SizedBox(height: 12),
             Text(value, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 4),
-            Text(title, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.secondaryText)),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: isDark ? FreightFairColors.darkSecondaryText : FreightFairColors.secondaryText,
+              ),
+            ),
           ],
         ),
       ),
@@ -147,9 +155,10 @@ class InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final surface = Theme.of(context).colorScheme.surface;
     return Container(
       padding: padding ?? const EdgeInsets.all(16),
-      decoration: elevatedSurfaceDecoration(),
+      decoration: elevatedSurfaceDecoration(color: surface),
       child: child,
     );
   }
@@ -167,7 +176,7 @@ class StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: filled ? color.withValues(alpha: 0.14) : FreightFairColors.background,
+        color: filled ? color.withValues(alpha: 0.14) : Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),

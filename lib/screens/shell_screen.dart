@@ -25,7 +25,6 @@ class _FreightFairShellScreenState extends State<FreightFairShellScreen> {
     final controller = FreightFairScope.of(context);
 
     return Scaffold(
-      backgroundColor: FreightFairColors.secondaryBackground,
       body: IndexedStack(
         index: controller.currentTab,
         children: [
@@ -36,12 +35,11 @@ class _FreightFairShellScreenState extends State<FreightFairShellScreen> {
         ],
       ),
       bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          border: Border(top: BorderSide(color: FreightFairColors.border, width: 1)),
+        decoration: BoxDecoration(
+          color: Theme.of(context).navigationBarTheme.backgroundColor,
+          border: Border(top: BorderSide(color: (Theme.of(context).brightness == Brightness.dark ? FreightFairColors.darkBorder : FreightFairColors.border), width: 1)),
         ),
         child: NavigationBar(
-          backgroundColor: Colors.white,
           selectedIndex: controller.currentTab,
           onDestinationSelected: controller.setTab,
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,

@@ -49,11 +49,13 @@ class _LanguageScreenState extends State<LanguageScreen> {
                   child: Container(
                     decoration: BoxDecoration(
                       border: Border.all(
-                        color: isSelected ? FreightFairColors.accent : Colors.grey.shade300,
+                        color: isSelected ? FreightFairColors.accent : (Theme.of(context).brightness == Brightness.dark ? FreightFairColors.darkBorder : FreightFairColors.border),
                         width: isSelected ? 2 : 1,
                       ),
                       borderRadius: BorderRadius.circular(12),
-                      color: isSelected ? FreightFairColors.accentLight.withValues(alpha: 0.3) : Colors.white,
+                      color: isSelected
+                          ? FreightFairColors.accent.withValues(alpha: 0.08)
+                          : Theme.of(context).colorScheme.surface,
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     child: Row(
@@ -72,7 +74,7 @@ class _LanguageScreenState extends State<LanguageScreen> {
                               Text(
                                 language['native']!,
                                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: FreightFairColors.secondaryText,
+                                      color: FreightFairColors.adaptiveSecondaryText(context),
                                     ),
                               ),
                             ],

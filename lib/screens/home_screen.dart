@@ -50,9 +50,9 @@ class HomeScreen extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: FreightFairColors.secondaryBackground,
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: FreightFairColors.border),
+                    border: Border.all(color: (Theme.of(context).brightness == Brightness.dark ? FreightFairColors.darkBorder : FreightFairColors.border)),
                   ),
                   child: Row(
                     children: const [
@@ -74,7 +74,7 @@ class HomeScreen extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               DateFormat('EEEE, d MMMM yyyy').format(now),
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.secondaryText),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context)),
             ),
             const SizedBox(height: 26),
             SectionHeader(title: 'Active Shipments', actionLabel: 'See all', onActionTap: () => _showComingSoon(context, 'All shipments')),
@@ -125,7 +125,7 @@ class HomeScreen extends StatelessWidget {
                           children: [
                             Text(route.route, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
                             const SizedBox(height: 4),
-                            Text('${route.pickup} to ${route.drop}', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.secondaryText)),
+                            Text('${route.pickup} to ${route.drop}', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context))),
                           ],
                         ),
                       ),
@@ -165,7 +165,7 @@ class _ShipmentCard extends StatelessWidget {
       child: Container(
         width: 290,
         padding: const EdgeInsets.all(16),
-        decoration: elevatedSurfaceDecoration(),
+        decoration: elevatedSurfaceDecoration(color: Theme.of(context).colorScheme.surface),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -178,7 +178,7 @@ class _ShipmentCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-            Text(shipment.driver, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.secondaryText)),
+            Text(shipment.driver, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context))),
             const Spacer(),
             Row(
               children: [
@@ -190,7 +190,7 @@ class _ShipmentCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Text('Truck ${shipment.truckNumber}', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.secondaryText)),
+            Text('Truck ${shipment.truckNumber}', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context))),
           ],
         ),
       ),

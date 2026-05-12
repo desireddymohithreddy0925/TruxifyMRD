@@ -242,9 +242,9 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: FreightFairColors.border),
+                border: Border.all(color: (Theme.of(context).brightness == Brightness.dark ? FreightFairColors.darkBorder : FreightFairColors.border)),
               ),
               constraints: const BoxConstraints(maxHeight: 200),
               child: ListView.separated(
@@ -313,7 +313,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                   Text(
                     'Selected Address',
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: FreightFairColors.secondaryText,
+                          color: FreightFairColors.adaptiveSecondaryText(context),
                           fontWeight: FontWeight.w700,
                         ),
                   ),

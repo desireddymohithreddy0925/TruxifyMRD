@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../controllers/app_controller.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_page_route.dart';
 import 'about_screen.dart';
@@ -141,6 +142,7 @@ class ProfileScreen extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: _MenuCard(
                 children: [
+                  _DarkModeMenuItem(),
                   _MenuItem(
                     icon: Icons.language_rounded,
                     label: 'Language',
@@ -169,7 +171,7 @@ class ProfileScreen extends StatelessWidget {
                   _MenuItem(
                     icon: Icons.logout_rounded,
                     label: 'Logout',
-                    iconBackgroundColor: const Color(0xFFFCEBEB),
+                    iconBackgroundColor: FreightFairColors.error.withValues(alpha: 0.12),
                     iconColor: FreightFairColors.error,
                     textColor: FreightFairColors.error,
                     showChevron: false,
@@ -200,7 +202,7 @@ class _SectionLabel extends StatelessWidget {
       child: Text(
         text.toUpperCase(),
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: FreightFairColors.secondaryText,
+              color: FreightFairColors.adaptiveSecondaryText(context),
               fontSize: 11,
               letterSpacing: 0.06 * 11,
               fontWeight: FontWeight.w500,
@@ -213,9 +215,11 @@ class _SectionLabel extends StatelessWidget {
 class _StatsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final surface = Theme.of(context).colorScheme.surface;
+    final dividerColor = (Theme.of(context).brightness == Brightness.dark ? FreightFairColors.darkBorder : FreightFairColors.border);
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [
           BoxShadow(color: Color(0x14000000), blurRadius: 8, offset: Offset(0, 2)),
@@ -223,13 +227,14 @@ class _StatsCard extends StatelessWidget {
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       child: Row(
-        children: const [
+        children: [
           Expanded(
             child: _StatColumn(
               value: '28',
               label: 'Orders',
               valueSize: 20,
               addRightDivider: true,
+              dividerColor: dividerColor,
             ),
           ),
           Expanded(
@@ -238,6 +243,7 @@ class _StatsCard extends StatelessWidget {
               label: 'Saved',
               valueSize: 16,
               addRightDivider: true,
+              dividerColor: dividerColor,
             ),
           ),
           Expanded(
@@ -245,6 +251,7 @@ class _StatsCard extends StatelessWidget {
               value: '124',
               label: 'kg CO2',
               valueSize: 20,
+              dividerColor: dividerColor,
             ),
           ),
         ],
@@ -259,18 +266,20 @@ class _StatColumn extends StatelessWidget {
     required this.label,
     required this.valueSize,
     this.addRightDivider = false,
+    this.dividerColor = FreightFairColors.border,
   });
 
   final String value;
   final String label;
   final double valueSize;
   final bool addRightDivider;
+  final Color dividerColor;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        border: addRightDivider ? const Border(right: BorderSide(color: FreightFairColors.border)) : null,
+        border: addRightDivider ? Border(right: BorderSide(color: dividerColor)) : null,
       ),
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Column(
@@ -288,7 +297,7 @@ class _StatColumn extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: FreightFairColors.secondaryText,
+                  color: FreightFairColors.adaptiveSecondaryText(context),
                   fontSize: 11,
                 ),
           ),
@@ -305,9 +314,10 @@ class _MenuCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final surface = Theme.of(context).colorScheme.surface;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [
           BoxShadow(color: Color(0x0F000000), blurRadius: 8, offset: Offset(0, 2)),
@@ -324,9 +334,9 @@ class _MenuItem extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.trailing,
-    this.iconBackgroundColor = FreightFairColors.accentLight,
+    this.iconBackgroundColor,
     this.iconColor = FreightFairColors.accent,
-    this.textColor = FreightFairColors.primaryText,
+    this.textColor,
     this.showChevron = true,
     this.showDivider = true,
   });
@@ -335,14 +345,18 @@ class _MenuItem extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
   final String? trailing;
-  final Color iconBackgroundColor;
+  final Color? iconBackgroundColor;
   final Color iconColor;
-  final Color textColor;
+  final Color? textColor;
   final bool showChevron;
   final bool showDivider;
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final resolvedIconBg = iconBackgroundColor ??
+        (isDark ? FreightFairColors.darkAccentLight : FreightFairColors.accentLight);
+    final resolvedTextColor = textColor ?? Theme.of(context).textTheme.bodyMedium?.color;
     return InkWell(
       onTap: onTap,
       child: Column(
@@ -355,7 +369,7 @@ class _MenuItem extends StatelessWidget {
                   width: 34,
                   height: 34,
                   decoration: BoxDecoration(
-                    color: iconBackgroundColor,
+                    color: resolvedIconBg,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(icon, size: 17, color: iconColor),
@@ -365,7 +379,7 @@ class _MenuItem extends StatelessWidget {
                   child: Text(
                     label,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: textColor,
+                          color: resolvedTextColor,
                           fontWeight: FontWeight.w500,
                           fontSize: 14,
                         ),
@@ -377,20 +391,81 @@ class _MenuItem extends StatelessWidget {
                     child: Text(
                       trailing!,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: FreightFairColors.secondaryText,
+                            color: isDark
+                                ? FreightFairColors.darkSecondaryText
+                                : FreightFairColors.secondaryText,
                             fontSize: 13,
                           ),
                     ),
                   ),
                 if (showChevron)
-                  const Icon(Icons.chevron_right_rounded, size: 16, color: Color(0xFFB0B0B0)),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 16,
+                    color: isDark ? FreightFairColors.darkSecondaryText : const Color(0xFFB0B0B0),
+                  ),
               ],
             ),
           ),
           if (showDivider)
-            const Divider(height: 1, thickness: 1, color: Color(0xFFF5F5F5)),
+            Divider(
+              height: 1,
+              thickness: 1,
+              color: isDark ? FreightFairColors.darkBorder : FreightFairColors.border,
+            ),
         ],
       ),
+    );
+  }
+}
+
+class _DarkModeMenuItem extends StatelessWidget {
+  const _DarkModeMenuItem();
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = FreightFairScope.of(context);
+    final isDark = controller.isDarkMode;
+    final iconBg = isDark ? FreightFairColors.darkAccentLight : FreightFairColors.accentLight;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.dark_mode_rounded, size: 17, color: FreightFairColors.accent),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Dark Mode',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
+                ),
+              ),
+              Switch(
+                value: isDark,
+                onChanged: (_) => controller.toggleDarkMode(),
+                activeColor: FreightFairColors.accent,
+              ),
+            ],
+          ),
+        ),
+        Divider(
+          height: 1,
+          thickness: 1,
+          color: isDark ? FreightFairColors.darkBorder : FreightFairColors.border,
+        ),
+      ],
     );
   }
 }

@@ -27,6 +27,7 @@ class _FindTrucksScreenState extends State<FindTrucksScreen> {
   late final TextEditingController _heightController;
   late final TextEditingController _dateController;
   late final TextEditingController _timeController;
+  late final TextEditingController _customGoodsTypeController;
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
   String _goodsType = 'Textile';
@@ -65,6 +66,7 @@ class _FindTrucksScreenState extends State<FindTrucksScreen> {
     _dateController = TextEditingController(text: _formatDateLabel(_selectedDate!));
     _timeController = TextEditingController(text: _formatTimeLabel(_selectedTime!));
     _goodsType = draft.goodsType;
+    _customGoodsTypeController = TextEditingController();
     _stacked = draft.stacked;
     _fragile = draft.fragile;
     _requirements
@@ -112,6 +114,7 @@ class _FindTrucksScreenState extends State<FindTrucksScreen> {
     _heightController.dispose();
     _dateController.dispose();
     _timeController.dispose();
+      _customGoodsTypeController.dispose();
     super.dispose();
   }
 
@@ -296,7 +299,7 @@ class _FindTrucksScreenState extends State<FindTrucksScreen> {
                     const SizedBox(height: 2),
                     Text(
                       'ML powered matching',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.secondaryText),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context)),
                     ),
                   ],
                 ),
@@ -322,7 +325,7 @@ class _FindTrucksScreenState extends State<FindTrucksScreen> {
               'ROUTE',
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: FreightFairColors.secondaryText,
+                    color: FreightFairColors.adaptiveSecondaryText(context),
                     letterSpacing: 0.5,
                   ),
             ),
@@ -422,7 +425,7 @@ class _FindTrucksScreenState extends State<FindTrucksScreen> {
               'GOODS DETAILS',
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: FreightFairColors.secondaryText,
+                    color: FreightFairColors.adaptiveSecondaryText(context),
                     letterSpacing: 0.5,
                   ),
             ),
@@ -437,8 +440,22 @@ class _FindTrucksScreenState extends State<FindTrucksScreen> {
                     onChanged: (value) => setState(() => _goodsType = value ?? _goodsType),
                     decoration: const InputDecoration(labelText: 'Goods Type'),
                   ),
+                  // "Other" custom goods type text field
+                  if (_goodsType == 'Other') ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _customGoodsTypeController,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: const InputDecoration(
+                        labelText: 'Describe your goods',
+                        hintText: 'e.g. Chemicals, Scrap metal…',
+                        prefixIcon: Icon(Icons.edit_note_rounded, color: FreightFairColors.accentDark),
+                        prefixIconConstraints: BoxConstraints(minWidth: 40, minHeight: 40),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
-                  // Weight and Dimensions (4 columns)
+                  // Weight and Dimensions (4 columns) — labels use floating style so they never clip
                   Row(
                     children: [
                       Expanded(
@@ -448,6 +465,8 @@ class _FindTrucksScreenState extends State<FindTrucksScreen> {
                           decoration: const InputDecoration(
                             labelText: 'Weight (t)',
                             hintText: '3',
+                            floatingLabelBehavior: FloatingLabelBehavior.always,
+                            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 14),
                           ),
                         ),
                       ),
@@ -457,8 +476,10 @@ class _FindTrucksScreenState extends State<FindTrucksScreen> {
                           controller: _lengthController,
                           keyboardType: TextInputType.number,
                           decoration: const InputDecoration(
-                            labelText: 'Length',
+                            labelText: 'Length (ft)',
                             hintText: '12',
+                            floatingLabelBehavior: FloatingLabelBehavior.always,
+                            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 14),
                           ),
                         ),
                       ),
@@ -468,8 +489,10 @@ class _FindTrucksScreenState extends State<FindTrucksScreen> {
                           controller: _widthController,
                           keyboardType: TextInputType.number,
                           decoration: const InputDecoration(
-                            labelText: 'Width',
+                            labelText: 'Width (ft)',
                             hintText: '6',
+                            floatingLabelBehavior: FloatingLabelBehavior.always,
+                            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 14),
                           ),
                         ),
                       ),
@@ -479,8 +502,10 @@ class _FindTrucksScreenState extends State<FindTrucksScreen> {
                           controller: _heightController,
                           keyboardType: TextInputType.number,
                           decoration: const InputDecoration(
-                            labelText: 'Height',
+                            labelText: 'Height (ft)',
                             hintText: '6',
+                            floatingLabelBehavior: FloatingLabelBehavior.always,
+                            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 14),
                           ),
                         ),
                       ),
@@ -517,7 +542,7 @@ class _FindTrucksScreenState extends State<FindTrucksScreen> {
                       'Special requirements',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             fontWeight: FontWeight.w600,
-                            color: FreightFairColors.secondaryText,
+                            color: FreightFairColors.adaptiveSecondaryText(context),
                           ),
                     ),
                   ),
@@ -545,10 +570,14 @@ class _FindTrucksScreenState extends State<FindTrucksScreen> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                             decoration: BoxDecoration(
-                              color: selected ? FreightFairColors.accentLight : const Color(0xFFF5F5F5),
+                              color: selected
+                                  ? (Theme.of(context).brightness == Brightness.dark
+                                      ? FreightFairColors.darkAccentLight
+                                      : FreightFairColors.accentLight)
+                                  : Theme.of(context).colorScheme.surfaceContainerHighest,
                               borderRadius: BorderRadius.circular(999),
                               border: Border.all(
-                                color: selected ? Colors.transparent : FreightFairColors.border,
+                                color: selected ? Colors.transparent : (Theme.of(context).brightness == Brightness.dark ? FreightFairColors.darkBorder : FreightFairColors.border),
                               ),
                             ),
                             child: Row(
@@ -557,13 +586,15 @@ class _FindTrucksScreenState extends State<FindTrucksScreen> {
                                 if (selected)
                                   Icon(Icons.check_rounded, color: FreightFairColors.accentDark, size: 16)
                                 else
-                                  Icon(Icons.add_rounded, color: FreightFairColors.secondaryText, size: 16),
+                                  Icon(Icons.add_rounded, color: FreightFairColors.adaptiveSecondaryText(context), size: 16),
                                 const SizedBox(width: 6),
                                 Text(
                                   label,
                                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
                                         fontWeight: FontWeight.w600,
-                                        color: selected ? FreightFairColors.accentDark : FreightFairColors.secondaryText,
+                                        color: selected
+                                            ? FreightFairColors.accentDark
+                                            : FreightFairColors.adaptiveSecondaryText(context),
                                       ),
                                 ),
                               ],
@@ -583,9 +614,9 @@ class _FindTrucksScreenState extends State<FindTrucksScreen> {
               children: [
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: FreightFairColors.border),
+                    border: Border.all(color: (Theme.of(context).brightness == Brightness.dark ? FreightFairColors.darkBorder : FreightFairColors.border)),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.05),
@@ -626,13 +657,15 @@ class _FindTrucksScreenState extends State<FindTrucksScreen> {
                         '₹6,200 — ₹7,800',
                         style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                               fontWeight: FontWeight.w800,
-                              color: FreightFairColors.accentDark,
+                              color: Theme.of(context).brightness == Brightness.dark
+                                  ? FreightFairColors.accent
+                                  : FreightFairColors.accentDark,
                             ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'Based on current demand + route',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.secondaryText),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context)),
                       ),
                     ],
                   ),
@@ -702,10 +735,12 @@ class _ColorToggleButton extends StatelessWidget {
         child: Container(
           height: 56,
           decoration: BoxDecoration(
-            color: isSelected ? FreightFairColors.accentDark : const Color(0xFFF0F0F0),
+            color: isSelected
+                ? FreightFairColors.accentDark
+                : Theme.of(context).colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isSelected ? FreightFairColors.accentDark : FreightFairColors.border,
+              color: isSelected ? FreightFairColors.accentDark : (Theme.of(context).brightness == Brightness.dark ? FreightFairColors.darkBorder : FreightFairColors.border),
             ),
           ),
           child: Row(
@@ -713,7 +748,7 @@ class _ColorToggleButton extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                color: isSelected ? Colors.white : FreightFairColors.secondaryText,
+                color: isSelected ? Colors.white : FreightFairColors.adaptiveSecondaryText(context),
                 size: 24,
               ),
               if (label != null) ...[
@@ -722,7 +757,7 @@ class _ColorToggleButton extends StatelessWidget {
                   label!,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: isSelected ? Colors.white : FreightFairColors.secondaryText,
+                        color: isSelected ? Colors.white : FreightFairColors.adaptiveSecondaryText(context),
                       ),
                 ),
               ],

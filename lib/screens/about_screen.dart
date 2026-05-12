@@ -48,7 +48,7 @@ class AboutScreen extends StatelessWidget {
                   Text(
                     'Version 1.0.0',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: FreightFairColors.secondaryText,
+                          color: FreightFairColors.adaptiveSecondaryText(context),
                         ),
                   ),
                 ],
@@ -57,7 +57,7 @@ class AboutScreen extends StatelessWidget {
             const SizedBox(height: 24),
             Container(
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(12),
               ),
               padding: const EdgeInsets.all(16),
@@ -75,7 +75,7 @@ class AboutScreen extends StatelessWidget {
                   Text(
                     'Truckify is a modern freight management platform connecting shippers with verified truck owners. We simplify logistics with real-time tracking, transparent pricing, and reliable service.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: FreightFairColors.secondaryText,
+                          color: FreightFairColors.adaptiveSecondaryText(context),
                           height: 1.6,
                         ),
                   ),
@@ -85,7 +85,7 @@ class AboutScreen extends StatelessWidget {
             const SizedBox(height: 16),
             Container(
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(12),
               ),
               padding: const EdgeInsets.all(16),
@@ -103,7 +103,7 @@ class AboutScreen extends StatelessWidget {
                   Text(
                     'To revolutionize the logistics industry by making freight transportation safe, affordable, and sustainable for everyone.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: FreightFairColors.secondaryText,
+                          color: FreightFairColors.adaptiveSecondaryText(context),
                           height: 1.6,
                         ),
                   ),
@@ -151,7 +151,7 @@ class AboutScreen extends StatelessWidget {
               child: Text(
                 '© 2024 Truckify. All rights reserved.',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: FreightFairColors.secondaryText,
+                      color: FreightFairColors.adaptiveSecondaryText(context),
                     ),
               ),
             ),
@@ -194,7 +194,7 @@ class _ContactRow extends StatelessWidget {
               Text(
                 label,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: FreightFairColors.secondaryText,
+                      color: FreightFairColors.adaptiveSecondaryText(context),
                     ),
               ),
               const SizedBox(height: 2),

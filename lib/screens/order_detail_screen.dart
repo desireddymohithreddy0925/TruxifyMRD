@@ -32,9 +32,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       builder: (context) {
         return Container(
           padding: const EdgeInsets.all(20),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -73,7 +73,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               children: [
                 Text(widget.order.orderId, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 8),
-                Text(widget.order.route, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.secondaryText)),
+                Text(widget.order.route, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context))),
                 const SizedBox(height: 8),
                 Text('Date: ${widget.order.date}', style: Theme.of(context).textTheme.bodyMedium),
                 const SizedBox(height: 8),
@@ -102,9 +102,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     children: [
                       Text(widget.order.driver, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
                       const SizedBox(height: 4),
-                      Text('⭐ 4.8', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.secondaryText)),
+                      Text('⭐ 4.8', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context))),
                       const SizedBox(height: 4),
-                      Text(widget.order.truckNumber, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.secondaryText)),
+                      Text(widget.order.truckNumber, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context))),
                     ],
                   ),
                 ),
@@ -221,7 +221,7 @@ class _TimelineRow extends StatelessWidget {
                   Expanded(
                     child: Text(step.title, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800)),
                   ),
-                  Text(step.timestamp, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.secondaryText)),
+                  Text(step.timestamp, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context))),
                 ],
               ),
             ),

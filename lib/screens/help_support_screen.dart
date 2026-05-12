@@ -40,7 +40,9 @@ class HelpSupportScreen extends StatelessWidget {
           children: [
             Container(
               decoration: BoxDecoration(
-                color: FreightFairColors.accentLight.withValues(alpha: 0.5),
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? FreightFairColors.darkAccentLight
+                    : FreightFairColors.accentLight.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(12),
               ),
               padding: const EdgeInsets.all(16),
@@ -70,7 +72,7 @@ class HelpSupportScreen extends StatelessWidget {
                         Text(
                           'Contact our support team',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: FreightFairColors.secondaryText,
+                                color: FreightFairColors.adaptiveSecondaryText(context),
                               ),
                         ),
                       ],
@@ -111,7 +113,7 @@ class HelpSupportScreen extends StatelessWidget {
                         child: Text(
                           faq['answer']!,
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: FreightFairColors.secondaryText,
+                                color: FreightFairColors.adaptiveSecondaryText(context),
                               ),
                         ),
                       ),

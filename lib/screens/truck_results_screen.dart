@@ -91,11 +91,11 @@ class _TruckCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          Text('${truck.truck}  |  ${truck.capacity}', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.secondaryText)),
+          Text('${truck.truck}  |  ${truck.capacity}', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context))),
           const SizedBox(height: 12),
           Row(
             children: [
-              Text('Available space', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.secondaryText)),
+              Text('Available space', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context))),
               const Spacer(),
               Text('${truck.freeSpacePercent}% free', style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700)),
             ],
@@ -116,9 +116,14 @@ class _TruckCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(truck.price, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800, color: FreightFairColors.accentDark)),
+                  Text(truck.price, style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? FreightFairColors.accent
+                        : FreightFairColors.accentDark,
+                  )),
                   const SizedBox(height: 3),
-                  Text('ETA to pickup: ${truck.eta}', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.secondaryText)),
+                  Text('ETA to pickup: ${truck.eta}', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context))),
                 ],
               ),
               const Spacer(),

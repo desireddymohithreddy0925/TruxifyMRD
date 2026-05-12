@@ -18,10 +18,16 @@ class _FreightFairAppState extends State<FreightFairApp> {
   void initState() {
     super.initState();
     _controller = FreightFairController();
+    _controller.addListener(_onControllerChanged);
+  }
+
+  void _onControllerChanged() {
+    setState(() {});
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_onControllerChanged);
     _controller.dispose();
     super.dispose();
   }
@@ -34,6 +40,8 @@ class _FreightFairAppState extends State<FreightFairApp> {
         debugShowCheckedModeBanner: false,
         title: 'FreightFair',
         theme: FreightFairTheme.light(),
+        darkTheme: FreightFairTheme.dark(),
+        themeMode: _controller.isDarkMode ? ThemeMode.dark : ThemeMode.light,
         home: const SplashScreen(),
       ),
     );

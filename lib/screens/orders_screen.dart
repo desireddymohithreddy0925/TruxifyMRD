@@ -131,11 +131,11 @@ class _ActiveOrderCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-            Text(order.route, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.secondaryText)),
+            Text(order.route, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context))),
             const SizedBox(height: 8),
             Text('Driver: ${order.driver}', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 4),
-            Text('ETA: ${order.eta}', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.secondaryText)),
+            Text('ETA: ${order.eta}', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context))),
             const SizedBox(height: 14),
             PrimaryButton(label: 'Track Live', onPressed: onTap),
           ],
@@ -165,19 +165,24 @@ class _HistoryOrderCard extends StatelessWidget {
                 Expanded(
                   child: Text(order.route, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
                 ),
-                Text(order.date, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.secondaryText)),
+                Text(order.date, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context))),
               ],
             ),
             const SizedBox(height: 10),
             Row(
               children: [
-                Text(order.amount, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800, color: FreightFairColors.accentDark)),
+                Text(order.amount, style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? FreightFairColors.accent
+                      : FreightFairColors.accentDark,
+                )),
                 const SizedBox(width: 10),
                 StatusBadge(label: order.status == 'Delivered' ? '✅ Delivered' : '❌ Cancelled', color: statusColor, filled: true),
               ],
             ),
             const SizedBox(height: 12),
-            Text('Driver: ${order.driver}', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.secondaryText)),
+            Text('Driver: ${order.driver}', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FreightFairColors.adaptiveSecondaryText(context))),
             const SizedBox(height: 14),
             Align(
               alignment: Alignment.centerRight,
