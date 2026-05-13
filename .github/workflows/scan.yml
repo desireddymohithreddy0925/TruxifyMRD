@@ -1,0 +1,291 @@
+name: Flutter AI Code Analysis
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  ai-analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+
+      # ── 1. Checkout ───────────────────────────────────────────────────────
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # ── 2. Flutter setup ──────────────────────────────────────────────────
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      # ── 3. Flutter analyze (catches real errors) ──────────────────────────
+      - name: Run Flutter Analyze
+        run: flutter analyze 2>&1 | tee flutter_analyze.txt || true
+
+      # ── 4. Collect project files ──────────────────────────────────────────
+      - name: Collect Project Files
+        run: |
+          echo "## Flutter Analyze Output" > full_report.txt
+          cat flutter_analyze.txt >> full_report.txt
+          echo "" >> full_report.txt
+
+          echo "## Project Structure" >> full_report.txt
+          find . \
+            -not -path './.git/*' \
+            -not -path './build/*' \
+            -not -path './.dart_tool/*' \
+            -not -path './android/*' \
+            -not -path './ios/*' \
+            -not -path './linux/*' \
+            -not -path './windows/*' \
+            -not -path './macos/*' \
+            | sort >> full_report.txt
+          echo "" >> full_report.txt
+
+          echo "## Dart Source Files" >> full_report.txt
+          find lib test -name "*.dart" \
+            ! -name "*.g.dart" \
+            ! -name "*.freezed.dart" \
+            ! -name "*.gen.dart" \
+            ! -name "*.mocks.dart" \
+            2>/dev/null | while read f; do
+              echo "" >> full_report.txt
+              echo "### FILE: $f" >> full_report.txt
+              echo '```dart' >> full_report.txt
+              cat "$f" >> full_report.txt
+              echo '```' >> full_report.txt
+          done
+
+          echo "" >> full_report.txt
+          echo "### FILE: pubspec.yaml" >> full_report.txt
+          cat pubspec.yaml >> full_report.txt
+
+          head -c 55000 full_report.txt > full_report_safe.txt
+          mv full_report_safe.txt full_report.txt
+
+          echo "Report size: $(wc -c < full_report.txt) bytes"
+          echo "Dart files: $(grep -c '### FILE:' full_report.txt || echo 0)"
+
+      # ── 5. Try Gemini first, fall back to Groq ────────────────────────────
+      - name: AI Analysis
+        id: ai_analysis
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          PROJECT_DATA=$(cat full_report.txt)
+
+          PROMPT="You are a senior Flutter/Dart engineer doing a full project audit.
+
+          Analyze this Flutter project thoroughly. Only report REAL issues you can actually see. Do NOT invent problems.
+
+          Review these areas:
+          1. Code Quality — dead code, hardcoded values, missing null safety
+          2. Project Structure — folder organization, feature separation
+          3. Architecture — broken patterns, tight coupling, god widgets/classes
+          4. Naming — classes/files not following Dart/Flutter conventions
+          5. Performance — unnecessary rebuilds, missing const constructors, heavy build()
+          6. Security — hardcoded secrets, insecure HTTP, missing validation
+          7. Maintainability — duplicated code, unclear responsibilities
+
+          For EACH real issue found, use this EXACT format (no exceptions):
+
+          ISSUE_START
+          title: <short clear title>
+          severity: critical|high|medium|low
+          category: <Code Quality|Structure|Architecture|Naming|Performance|Security|Maintainability>
+          file: <file path or project-wide>
+          description: <specific evidence you can see in the code>
+          suggestion: <concrete actionable fix>
+          ISSUE_END
+
+          After all issues add:
+          SUMMARY_START
+          <2-3 paragraph honest overall assessment. Say clearly if the code is actually good.>
+          SUMMARY_END
+
+          Project data:
+          $PROJECT_DATA"
+
+          # ── Try Gemini ────────────────────────────────────────────────────
+          echo "Trying Gemini 2.5 Flash..."
+
+          GEMINI_PAYLOAD=$(jq -n --arg text "$PROMPT" \
+            '{contents: [{parts: [{text: $text}]}]}')
+
+          GEMINI_STATUS=$(curl -s -w "%{http_code}" -o gemini_response.json \
+            --max-time 60 \
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$GEMINI_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$GEMINI_PAYLOAD")
+
+          if [ "$GEMINI_STATUS" = "200" ]; then
+            AI_TEXT=$(cat gemini_response.json | jq -r '.candidates[0].content.parts[0].text // ""')
+            if [ -n "$AI_TEXT" ]; then
+              echo "$AI_TEXT" > ai_analysis.txt
+              echo "AI_PROVIDER=Gemini 2.5 Flash" >> $GITHUB_ENV
+              echo "✅ Gemini succeeded"
+              exit 0
+            fi
+          fi
+
+          echo "Gemini failed (status: $GEMINI_STATUS), switching to Groq..."
+
+          # ── Fallback: Groq (Llama 3.3 70B) ───────────────────────────────
+          GROQ_PAYLOAD=$(jq -n --arg text "$PROMPT" \
+            '{
+              model: "llama-3.3-70b-versatile",
+              max_tokens: 4096,
+              messages: [{ role: "user", content: $text }]
+            }')
+
+          GROQ_STATUS=$(curl -s -w "%{http_code}" -o groq_response.json \
+            --max-time 60 \
+            "https://api.groq.com/openai/v1/chat/completions" \
+            -H "Authorization: Bearer $GROQ_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$GROQ_PAYLOAD")
+
+          if [ "$GROQ_STATUS" = "200" ]; then
+            AI_TEXT=$(cat groq_response.json | jq -r '.choices[0].message.content // ""')
+            if [ -n "$AI_TEXT" ]; then
+              echo "$AI_TEXT" > ai_analysis.txt
+              echo "AI_PROVIDER=Groq (Llama 3.3 70B)" >> $GITHUB_ENV
+              echo "✅ Groq fallback succeeded"
+              exit 0
+            fi
+          fi
+
+          echo "Both Gemini and Groq failed"
+          echo "API_FAILED=true" >> $GITHUB_ENV
+
+      # ── 6. Create/update GitHub issue ────────────────────────────────────
+      - name: Create GitHub Issue
+        if: env.API_FAILED != 'true'
+        uses: actions/github-script@v7
+        env:
+          AI_PROVIDER: ${{ env.AI_PROVIDER }}
+        with:
+          script: |
+            const fs = require('fs');
+
+            if (!fs.existsSync('ai_analysis.txt')) {
+              console.log('No analysis file, skipping.');
+              return;
+            }
+
+            const analysisText = fs.readFileSync('ai_analysis.txt', 'utf8');
+            const issueBlocks = [...analysisText.matchAll(/ISSUE_START([\s\S]*?)ISSUE_END/g)];
+            const summaryMatch = analysisText.match(/SUMMARY_START([\s\S]*?)SUMMARY_END/);
+            const summary = summaryMatch ? summaryMatch[1].trim() : 'No summary generated.';
+            const provider = process.env.AI_PROVIDER || 'AI';
+
+            // No issues found — auto close any open issue
+            if (issueBlocks.length === 0) {
+              console.log('No issues found.');
+              const existing = await github.rest.issues.listForRepo({
+                owner: context.repo.owner, repo: context.repo.repo,
+                state: 'open', labels: 'flutter-ai-analysis'
+              });
+              for (const issue of existing.data) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  issue_number: issue.number,
+                  body: `✅ Re-analysis on \`${{ github.sha }}\` found **no issues**. Closing automatically.\n\n_Analyzed by ${provider}_`
+                });
+                await github.rest.issues.update({
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  issue_number: issue.number, state: 'closed'
+                });
+              }
+              return;
+            }
+
+            // Parse all issues
+            const sevEmoji = { critical: '🔴', high: '🟠', medium: '🟡', low: '🔵' };
+            const counts = { critical: 0, high: 0, medium: 0, low: 0 };
+            const parsed = issueBlocks.map(block => {
+              const t = block[1];
+              const get = k => { const m = t.match(new RegExp(`${k}:\\s*(.+)`)); return m ? m[1].trim() : 'Unknown'; };
+              const sev = get('severity').toLowerCase();
+              if (sev in counts) counts[sev]++;
+              return {
+                title: get('title'), severity: sev,
+                category: get('category'), file: get('file'),
+                description: get('description'), suggestion: get('suggestion')
+              };
+            });
+
+            // Build issue body
+            let body = `## 🤖 Flutter AI Code Analysis Report\n\n`;
+            body += `> ⚠️ **Note:** AI-generated suggestions. Review each one before acting — AI can occasionally flag false positives.\n\n`;
+            body += `| | |\n|---|---|\n`;
+            body += `| **Commit** | \`${{ github.sha }}\` |\n`;
+            body += `| **Branch** | \`${{ github.ref_name }}\` |\n`;
+            body += `| **Analyzed by** | ${provider} |\n`;
+            body += `| **Workflow run** | [View logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) |\n\n`;
+            body += `---\n\n### 📋 Overall Summary\n\n${summary}\n\n---\n\n`;
+            body += `### 📊 Issue Breakdown\n\n`;
+            body += `| Severity | Count |\n|---|---|\n`;
+            body += `| 🔴 Critical | ${counts.critical} |\n`;
+            body += `| 🟠 High | ${counts.high} |\n`;
+            body += `| 🟡 Medium | ${counts.medium} |\n`;
+            body += `| 🔵 Low | ${counts.low} |\n`;
+            body += `| **Total** | **${parsed.length}** |\n\n---\n\n`;
+            body += `### 🔍 Detailed Issues\n\n`;
+
+            for (const issue of parsed) {
+              const emoji = sevEmoji[issue.severity] || '⚪';
+              body += `<details>\n`;
+              body += `<summary>${emoji} <strong>[${issue.severity.toUpperCase()}] ${issue.title}</strong> &nbsp;·&nbsp; <code>${issue.file}</code></summary>\n\n`;
+              body += `**Category:** \`${issue.category}\`\n\n`;
+              body += `**Problem:**\n${issue.description}\n\n`;
+              body += `**Suggested fix:**\n${issue.suggestion}\n\n`;
+              body += `</details>\n\n`;
+            }
+
+            body += `---\n_Report generated: ${new Date().toUTCString()}_`;
+
+            // Check for existing open issue
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', labels: 'flutter-ai-analysis'
+            });
+
+            if (existing.data.length > 0) {
+              // Update existing — add comment
+              const num = existing.data[0].number;
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: num,
+                body: `### 🔄 New scan on \`${{ github.sha }}\`\n\n${body}`
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: num,
+                title: `🤖 Flutter AI Analysis: ${parsed.length} issue(s) found`
+              });
+              console.log(`Updated existing issue #${num}`);
+            } else {
+              // Create fresh issue
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title: `🤖 Flutter AI Analysis: ${parsed.length} issue(s) found`,
+                body: body,
+                labels: ['flutter-ai-analysis', 'ai-generated']
+              });
+              console.log('Created new issue');
+            }
