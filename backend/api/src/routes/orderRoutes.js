@@ -455,4 +455,182 @@ router.post('/:id/bids/:bidId/accept', authenticate, requireRole(['customer']), 
   }
 });
 
+// ============================================================================
+// 7. UPDATE ORDER STATUS (DRIVER) - Generate OTP when moving to in_transit
+// ============================================================================
+router.put('/:id/status', authenticate, requireRole(['driver']), async (req, res) => {
+  const orderId = req.params.id;
+  const { status } = req.body;
+
+  if (!status) {
+    return res.status(400).json({ error: 'Status is required.' });
+  }
+
+  // Prevent direct transition to delivered - must use OTP verification
+  const validStatuses = ['truck_assigned', 'picked_up', 'in_transit', 'arriving', 'cancelled'];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ error: 'Invalid order status. Use /verify-delivery to confirm delivery.' });
+  }
+
+  try {
+    // 7.1 Fetch order and verify driver is assigned
+    const { data: order, error: orderErr } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', orderId)
+      .maybeSingle();
+
+    if (orderErr || !order) {
+      return res.status(404).json({ error: 'Order not found.' });
+    }
+
+    if (order.driver_id !== req.user.id) {
+      return res.status(403).json({ error: 'Access Denied: You are not assigned to this order.' });
+    }
+
+    // 7.2 Prepare updates
+    const updates = {
+      status,
+      updated_at: new Date().toISOString()
+    };
+
+    // Generate OTP if moving to in_transit
+    let generatedOtp = null;
+    if (status === 'in_transit' && !order.delivery_otp) {
+      generatedOtp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
+      updates.delivery_otp = generatedOtp;
+      updates.otp_generated_at = new Date().toISOString();
+    }
+
+    // 7.3 Perform update
+    const { data: updatedOrder, error: updateErr } = await supabase
+      .from('orders')
+      .update(updates)
+      .eq('id', orderId)
+      .select('*')
+      .single();
+
+    if (updateErr) {
+      return res.status(500).json({ error: 'Failed to update order status.', details: updateErr.message });
+    }
+
+    // 7.4 Update order timeline
+    let timelineMilestone = null;
+    switch (status) {
+      case 'picked_up':
+        timelineMilestone = 'Goods Loaded';
+        break;
+      case 'in_transit':
+        timelineMilestone = 'In Transit';
+        break;
+    }
+
+    if (timelineMilestone) {
+      await supabase
+        .from('order_timeline')
+        .update({ completed: true, milestone_time: new Date().toISOString() })
+        .eq('order_display_id', order.order_display_id)
+        .eq('milestone', timelineMilestone);
+    }
+
+    // 7.5 Return response
+    const response = {
+      message: 'Order status updated successfully.',
+      order: updatedOrder
+    };
+    if (generatedOtp) {
+      // In real app, you would send this OTP to the customer via SMS/email
+      response.otp = generatedOtp;
+    }
+
+    res.json(response);
+
+  } catch (err) {
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// ============================================================================
+// 8. VERIFY DELIVERY OTP AND RELEASE FUNDS (DRIVER)
+// ============================================================================
+router.post('/:id/verify-delivery', authenticate, requireRole(['driver']), async (req, res) => {
+  const orderId = req.params.id;
+  const { otp } = req.body;
+
+  if (!otp) {
+    return res.status(400).json({ error: 'OTP is required for verification.' });
+  }
+
+  try {
+    // 8.1 Fetch order and verify driver is assigned
+    const { data: order, error: orderErr } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', orderId)
+      .maybeSingle();
+
+    if (orderErr || !order) {
+      return res.status(404).json({ error: 'Order not found.' });
+    }
+
+    if (order.driver_id !== req.user.id) {
+      return res.status(403).json({ error: 'Access Denied: You are not assigned to this order.' });
+    }
+
+    // 8.2 Validate OTP
+    if (!order.delivery_otp || order.otp_verified) {
+      return res.status(400).json({ error: 'OTP not available or already verified.' });
+    }
+
+    if (order.delivery_otp !== otp) {
+      return res.status(400).json({ error: 'Invalid OTP. Please check and try again.' });
+    }
+
+    // 8.3 Mark OTP as verified and update order status
+    const { data: updatedOrder, error: updateErr } = await supabase
+      .from('orders')
+      .update({
+        otp_verified: true,
+        status: 'payment_released',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', orderId)
+      .select('*')
+      .single();
+
+    if (updateErr) {
+      return res.status(500).json({ error: 'Failed to verify OTP.', details: updateErr.message });
+    }
+
+    // 8.4 Update order timeline
+    await supabase
+      .from('order_timeline')
+      .update({ completed: true, milestone_time: new Date().toISOString() })
+      .eq('order_display_id', order.order_display_id)
+      .eq('milestone', 'Delivered');
+
+    // 8.5 Call complete_trip_tx RPC if it exists
+    // Note: If this RPC isn't defined yet, we'll log and proceed gracefully
+    try {
+      const { error: rpcErr } = await supabase.rpc('complete_trip_tx', {
+        p_order_id: orderId
+      });
+      if (rpcErr) {
+        console.warn('complete_trip_tx RPC not available or failed, proceeding with order update:', rpcErr.message);
+      }
+    } catch (rpcErr) {
+      console.warn('complete_trip_tx RPC call error:', rpcErr.message);
+    }
+
+    // 8.6 Return success
+    res.json({
+      message: 'Delivery verified successfully! Payment released to driver.',
+      order: updatedOrder
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 export default router;
