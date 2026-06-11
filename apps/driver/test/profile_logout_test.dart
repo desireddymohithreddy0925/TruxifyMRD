@@ -54,8 +54,10 @@ void main() {
     await _pumpTransition(tester);
     expect(find.text('My Documents'), findsOneWidget);
 
-    await tester.tap(find.text('Profile'));
+    await tester.pageBack();
     await _pumpTransition(tester);
+
+    expect(find.text('Logout'), findsOneWidget);
 
     await tester.tap(find.text('Logout'));
     await _pumpTransition(tester);
