@@ -2,6 +2,7 @@
 
 import 'dart:convert';
 import 'dart:math' as math;
+import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -27,8 +28,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  static const ll.LatLng _currentLocation = ll.LatLng(21.1702, 72.8311);
-  static const String _currentLocationLabel = 'Surat Yard';
+  // Null until GPS resolves — no hardcoded coordinates anywhere
+  ll.LatLng? _currentLocation;
 
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -41,9 +42,17 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isDestinationExpanded = false;
   bool _isOnline = true;
   bool _isRefreshingLocation = false;
-  String? _currentLocationText = _currentLocationLabel;
+  String? _currentLocationText;
   bool _isTripStarted = false;
   bool _showStatusCard = true;
+  bool _isLoadingLocation = true;
+  String? _locationError;
+
+  @override
+  void initState() {
+    super.initState();
+    _initLocation();
+  }
 
   @override
   void dispose() {
@@ -53,45 +62,170 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  void _expandSearchBar() {
-    if (_isSearchExpanded) return;
-    setState(() => _isSearchExpanded = true);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _searchFocusNode.requestFocus();
-      }
+  /// Called once on startup — fetches GPS and resolves address.
+  Future<void> _initLocation() async {
+    setState(() {
+      _isLoadingLocation = true;
+      _locationError = null;
     });
+
+    final position = await _fetchGpsPosition();
+
+    if (!mounted) return;
+
+    if (position != null) {
+      setState(() {
+        _currentLocation = ll.LatLng(position.latitude, position.longitude);
+        _isLoadingLocation = false;
+      });
+      final address = await _resolveCurrentLocationAddress();
+      if (!mounted) return;
+      setState(() {
+        _currentLocationText = address;
+      });
+    } else {
+      setState(() {
+        _isLoadingLocation = false;
+        // _currentLocation stays null — map shows error state
+        _currentLocationText = null;
+      });
+    }
   }
 
-  void _collapseSearchBar() {
-    if (!_isSearchExpanded) return;
-    setState(() => _isSearchExpanded = false);
+  /// Requests permission and fetches the current GPS position.
+  /// Returns null if permission denied or location unavailable.
+  Future<Position?> _fetchGpsPosition() async {
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      debugPrint('Location service enabled: $serviceEnabled');
+
+      if (!serviceEnabled) {
+        if (mounted) {
+          setState(() {
+            _locationError = 'Location services are disabled.';
+          });
+        }
+        await Geolocator.openLocationSettings();
+        return null;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      debugPrint('Initial permission: $permission');
+
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        debugPrint('Permission after request: $permission');
+
+        if (permission == LocationPermission.denied) {
+          if (mounted) {
+            setState(() {
+              _locationError = 'Location permission denied.';
+            });
+          }
+          return null;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        if (mounted) {
+          setState(() {
+            _locationError =
+                'Location permission permanently denied. Enable it in Settings.';
+          });
+          _showLocationSettingsDialog();
+        }
+        return null;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      debugPrint(
+        'Latitude: ${position.latitude}, Longitude: ${position.longitude}',
+      );
+
+      return position;
+    } catch (e, stackTrace) {
+      debugPrint('====================');
+      debugPrint('LOCATION ERROR');
+      debugPrint(e.toString());
+      debugPrint(stackTrace.toString());
+      debugPrint('====================');
+
+      if (mounted) {
+        setState(() {
+          _locationError = e.toString();
+        });
+      }
+      return null;
+    }
   }
 
+  void _showLocationSettingsDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Location Permission Required'),
+        content: const Text(
+          'Location access is permanently denied. Please enable it in your device Settings to use this feature.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Geolocator.openAppSettings();
+            },
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Tap on the current location row — refreshes GPS + address.
   Future<void> _fetchCurrentLocation() async {
     setState(() {
       _isRefreshingLocation = true;
+      _locationError = null;
     });
 
-    final resolvedLocation = await _resolveCurrentLocationAddress();
+    final position = await _fetchGpsPosition();
 
-    if (!mounted) {
-      return;
+    if (!mounted) return;
+
+    if (position != null) {
+      setState(() {
+        _currentLocation = ll.LatLng(position.latitude, position.longitude);
+      });
+      final address = await _resolveCurrentLocationAddress();
+      if (!mounted) return;
+      setState(() {
+        _currentLocationText = address;
+        _isRefreshingLocation = false;
+      });
+    } else {
+      setState(() {
+        _isRefreshingLocation = false;
+        _currentLocationText = null;
+      });
     }
-
-    setState(() {
-      _currentLocationText = resolvedLocation;
-      _isRefreshingLocation = false;
-    });
   }
 
+  /// Reverse geocodes `_currentLocation` using Nominatim.
   Future<String> _resolveCurrentLocationAddress() async {
+    if (_currentLocation == null) return 'Location Unavailable';
+
     final uri = Uri.https(
       'nominatim.openstreetmap.org',
       '/reverse',
       <String, String>{
-        'lat': _currentLocation.latitude.toStringAsFixed(6),
-        'lon': _currentLocation.longitude.toStringAsFixed(6),
+        'lat': _currentLocation!.latitude.toStringAsFixed(6),
+        'lon': _currentLocation!.longitude.toStringAsFixed(6),
         'format': 'jsonv2',
       },
     );
@@ -105,26 +239,23 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       );
 
-      if (response.statusCode != 200) {
-        return _currentLocationLabel;
-      }
+      if (response.statusCode != 200) return 'Location Unavailable';
 
       final decoded = jsonDecode(response.body);
       if (decoded is Map<String, dynamic>) {
         final displayName = (decoded['display_name'] as String?)?.trim();
-        if (displayName != null && displayName.isNotEmpty) {
-          return displayName;
-        }
+        if (displayName != null && displayName.isNotEmpty) return displayName;
       }
     } catch (_) {
-      return _currentLocationLabel;
+      return 'Location Unavailable';
     }
 
-    return _currentLocationLabel;
+    return 'Location Unavailable';
   }
 
   void _centerMapOnCurrentLocation() {
-    _mapController.move(_currentLocation, _mapZoom);
+    if (_currentLocation == null) return;
+    _mapController.move(_currentLocation!, _mapZoom);
   }
 
   void _toggleOnlineState() {
@@ -134,6 +265,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onMapTap(ll.LatLng point) {
+    if (_currentLocation == null) return;
     if (!_isOnline) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please go online to set destinations')),
@@ -146,7 +278,7 @@ class _HomeScreenState extends State<HomeScreen> {
           DestinationPickResult(address: 'Pinned location', point: point);
       _searchController.text = _destination!.address;
       _isDestinationExpanded = false;
-      final routePoints = <ll.LatLng>[_currentLocation, point];
+      final routePoints = <ll.LatLng>[_currentLocation!, point];
       _routeFuture = RouteService.fetchRouteGeoJson(routePoints).onError(
         (_, __) => routePoints,
       );
@@ -178,7 +310,10 @@ class _HomeScreenState extends State<HomeScreen> {
         _destination = result;
         _searchController.text = result.address;
         _isSearchExpanded = false;
-        final routePoints = <ll.LatLng>[_currentLocation, result.point];
+        final routePoints = <ll.LatLng>[
+          if (_currentLocation != null) _currentLocation!,
+          result.point,
+        ];
         _routeFuture = RouteService.fetchRouteGeoJson(routePoints).onError(
           (_, __) => routePoints,
         );
@@ -200,10 +335,21 @@ class _HomeScreenState extends State<HomeScreen> {
     _clearDestination();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Trip completed! Net earnings added to wallet.'),
+        content: const Text('Trip completed! Net earnings added to wallet.'),
         backgroundColor: TruxifyColors.success,
       ),
     );
+  }
+
+  /// Short readable label for the current location.
+  String get _currentLocationLabel {
+    if (_isLoadingLocation) return 'Locating...';
+    if (_locationError != null) return 'Location Unavailable';
+    if (_currentLocationText != null && _currentLocationText!.isNotEmpty) {
+      final parts = _currentLocationText!.split(',');
+      return parts.first.trim();
+    }
+    return 'Current Location';
   }
 
   @override
@@ -235,22 +381,24 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            // Recenter FAB (floated above bottom cards)
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-              right: 16,
-              bottom: _showStatusCard ? (_destination == null ? 220 : 270) : 32,
-              child: FloatingActionButton(
-                heroTag: 'driver-home-recenter',
-                onPressed: _centerMapOnCurrentLocation,
-                backgroundColor: Theme.of(context).colorScheme.surface,
-                foregroundColor: TruxifyColors.accent,
-                elevation: 4,
-                shape: const CircleBorder(),
-                child: const Icon(Icons.my_location_rounded),
+            // Recenter FAB — hidden until GPS is ready
+            if (_currentLocation != null)
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+                right: 16,
+                bottom:
+                    _showStatusCard ? (_destination == null ? 220 : 270) : 32,
+                child: FloatingActionButton(
+                  heroTag: 'driver-home-recenter',
+                  onPressed: _centerMapOnCurrentLocation,
+                  backgroundColor: Theme.of(context).colorScheme.surface,
+                  foregroundColor: TruxifyColors.accent,
+                  elevation: 4,
+                  shape: const CircleBorder(),
+                  child: const Icon(Icons.my_location_rounded),
+                ),
               ),
-            ),
 
             // Bottom Controller Card
             Positioned(
@@ -262,7 +410,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 minimum: EdgeInsets.zero,
                 child: AnimatedSlide(
                   duration: const Duration(milliseconds: 300),
-                  offset: _showStatusCard ? Offset.zero : const Offset(0, 1.2),
+                  offset:
+                      _showStatusCard ? Offset.zero : const Offset(0, 1.2),
                   child: GestureDetector(
                     onTap: () {
                       setState(() {
@@ -365,18 +514,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (day == null || year == null) return null;
 
     final monthMap = <String, int>{
-      'jan': 1,
-      'feb': 2,
-      'mar': 3,
-      'apr': 4,
-      'may': 5,
-      'jun': 6,
-      'jul': 7,
-      'aug': 8,
-      'sep': 9,
-      'oct': 10,
-      'nov': 11,
-      'dec': 12,
+      'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4,
+      'may': 5, 'jun': 6, 'jul': 7, 'aug': 8,
+      'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12,
     };
     final month = monthMap[parts[1].toLowerCase()];
     if (month == null) return null;
@@ -386,11 +526,56 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildMapBody(BuildContext context,
       {required bool showDestinationChip}) {
+    // Show loading spinner while GPS is being fetched
+    if (_isLoadingLocation) {
+      return Container(
+        color: Theme.of(context).colorScheme.surfaceContainerLowest,
+        child: const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Fetching your location...'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Show error state if GPS failed and no location available
+    if (_currentLocation == null) {
+      return Container(
+        color: Theme.of(context).colorScheme.surfaceContainerLowest,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.location_off_rounded,
+                  size: 48, color: TruxifyColors.errorRed),
+              const SizedBox(height: 12),
+              Text(
+                _locationError ?? 'Location unavailable',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.dmSans(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: _initLocation,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     if (_destination == null) {
       return FlutterMap(
         mapController: _mapController,
         options: MapOptions(
-          initialCenter: _currentLocation,
+          initialCenter: _currentLocation!,
           initialZoom: _mapZoom,
           interactionOptions: const InteractionOptions(
             flags: InteractiveFlag.all,
@@ -420,13 +605,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return FutureBuilder<List<ll.LatLng>>(
       future: _routeFuture ??
-          Future.value(<ll.LatLng>[_currentLocation, _destination!.point]),
+          Future.value(<ll.LatLng>[_currentLocation!, _destination!.point]),
       builder: (context, snap) {
         final routePoints = (snap.connectionState == ConnectionState.done &&
                 snap.hasData &&
                 snap.data!.length >= 2)
             ? snap.data!
-            : <ll.LatLng>[_currentLocation, _destination!.point];
+            : <ll.LatLng>[_currentLocation!, _destination!.point];
 
         final center = _routeCenter(routePoints);
         final zoom = _routeZoom(routePoints);
@@ -461,7 +646,7 @@ class _HomeScreenState extends State<HomeScreen> {
             MarkerLayer(
               markers: [
                 Marker(
-                  point: _currentLocation,
+                  point: _currentLocation!,
                   width: 54,
                   height: 54,
                   alignment: Alignment.center,
@@ -477,7 +662,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         width: 34,
                         height: 34,
                         alignment: Alignment.center,
-                        child: RouteCheckpointMarker(label: '${entry.key + 1}'),
+                        child:
+                            RouteCheckpointMarker(label: '${entry.key + 1}'),
                       ),
                     ),
                 Marker(
@@ -561,16 +747,9 @@ class _HomeScreenState extends State<HomeScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const PulsingLocationDot(),
-                Container(
-                  width: 1,
-                  height: 12,
-                  color: TruxifyColors.border,
-                ),
-                const Icon(
-                  Icons.location_on_rounded,
-                  size: 14,
-                  color: TruxifyColors.errorRed,
-                ),
+                Container(width: 1, height: 12, color: TruxifyColors.border),
+                const Icon(Icons.location_on_rounded,
+                    size: 14, color: TruxifyColors.errorRed),
               ],
             ),
             const SizedBox(width: 12),
@@ -586,18 +765,41 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Row(
                         children: [
                           Expanded(
-                            child: Text(
-                              _currentLocationText ?? _currentLocationLabel,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.dmSans(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                            ),
+                            child: _isLoadingLocation
+                                ? Text(
+                                    'Fetching your location...',
+                                    style: GoogleFonts.dmSans(
+                                      fontSize: 13,
+                                      color:
+                                          TruxifyColors.adaptiveSecondaryText(
+                                              context),
+                                    ),
+                                  )
+                                : _locationError != null
+                                    ? Text(
+                                        _locationError!,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: GoogleFonts.dmSans(
+                                          fontSize: 13,
+                                          color: TruxifyColors.errorRed,
+                                        ),
+                                      )
+                                    : Text(
+                                        _currentLocationText ??
+                                            'Tap to refresh location',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: GoogleFonts.dmSans(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurface,
+                                        ),
+                                      ),
                           ),
-                          _isRefreshingLocation
+                          _isRefreshingLocation || _isLoadingLocation
                               ? const SizedBox(
                                   width: 14,
                                   height: 14,
@@ -607,10 +809,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 )
                               : Icon(
-                                  Icons.refresh_rounded,
+                                  _locationError != null
+                                      ? Icons.error_outline_rounded
+                                      : Icons.refresh_rounded,
                                   size: 16,
-                                  color: TruxifyColors.adaptiveSecondaryText(
-                                      context),
+                                  color: _locationError != null
+                                      ? TruxifyColors.errorRed
+                                      : TruxifyColors.adaptiveSecondaryText(
+                                          context),
                                 ),
                         ],
                       ),
@@ -651,9 +857,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(20),
-        ),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         border: Border.all(color: TruxifyColors.border),
         boxShadow: [
           BoxShadow(
@@ -668,7 +872,6 @@ class _HomeScreenState extends State<HomeScreen> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Shift Info Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -704,14 +907,15 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Radar active. Looking for load assignments near Surat Yard...',
+            _isLoadingLocation
+                ? 'Radar active. Fetching your location...'
+                : 'Radar active. Looking for load assignments near $_currentLocationLabel...',
             style: GoogleFonts.dmSans(
               fontSize: 11,
               color: TruxifyColors.adaptiveSecondaryText(context),
             ),
           ),
           const SizedBox(height: 16),
-          // Stats Row
           Row(
             children: [
               Expanded(
@@ -745,7 +949,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildShiftMetric(
-      {required IconData icon, required String value, required String label}) {
+      {required IconData icon,
+      required String value,
+      required String label}) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
       decoration: BoxDecoration(
@@ -787,11 +993,19 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
+    if (_currentLocation == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Current location unavailable. Please retry.')),
+      );
+      return;
+    }
+
     try {
       final destination = _destination!.point;
 
-      final routePoints =
-          await (_routeFuture ?? Future.value([_currentLocation, destination]));
+      final routePoints = await (_routeFuture ??
+          Future.value([_currentLocation!, destination]));
 
       final checkpoints = _buildCheckpointPoints(routePoints);
 
@@ -799,17 +1013,13 @@ class _HomeScreenState extends State<HomeScreen> {
           checkpoints.map((p) => '${p.latitude},${p.longitude}').join('|');
 
       final url = 'https://www.google.com/maps/dir/?api=1'
-          '&origin=21.1702,72.8311'
+          '&origin=${_currentLocation!.latitude},${_currentLocation!.longitude}'
           '&destination=${destination.latitude},${destination.longitude}'
           '${waypointString.isNotEmpty ? '&waypoints=$waypointString' : ''}'
           '&travelmode=driving';
 
       final uri = Uri.parse(url);
-
-      final launched = await launchUrl(
-        uri,
-        mode: LaunchMode.externalApplication,
-      );
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
 
       if (!launched && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -848,7 +1058,8 @@ class _HomeScreenState extends State<HomeScreen> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: _isTripStarted
                       ? const Color(0xFFEAFCEE)
@@ -880,12 +1091,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: const Icon(Icons.navigation_rounded),
                 color: TruxifyColors.accent,
                 onPressed: _openGoogleMapsRoute,
-              )
+              ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
-            'Surat Yard → $routeStr',
+            '$_currentLocationLabel → $routeStr',
             style: GoogleFonts.dmSans(
               fontSize: 15,
               fontWeight: FontWeight.bold,
@@ -893,7 +1104,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          // Estimated Stats
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -926,9 +1136,10 @@ class _HomeScreenState extends State<HomeScreen> {
               borderRadius: BorderRadius.circular(3),
               child: LinearProgressIndicator(
                 value: 0.25,
-                backgroundColor: Theme.of(context).brightness == Brightness.dark
-                    ? TruxifyColors.darkBorder
-                    : TruxifyColors.border,
+                backgroundColor:
+                    Theme.of(context).brightness == Brightness.dark
+                        ? TruxifyColors.darkBorder
+                        : TruxifyColors.border,
                 valueColor:
                     AlwaysStoppedAnimation<Color>(TruxifyColors.success),
                 minHeight: 6,
