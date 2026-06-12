@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import rateLimit from 'express-rate-limit';
 import tripRoutes from './routes/tripRoutes.js';
+import deviceRoutes from './routes/deviceRoutes.js';
 
 import { closeDbConnections } from './config/db.js';
 import { closeWebSocketServer, initWebSocketServer } from './sockets/tracker.js';
@@ -191,6 +192,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/driver', driverRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/devices', deviceRoutes);
 app.use('/api/trucks', truckRoutes);
 // Root route
 app.get('/', (req, res) => {

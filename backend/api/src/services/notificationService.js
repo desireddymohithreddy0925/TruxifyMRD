@@ -8,10 +8,11 @@ import { supabase, firebaseAdmin } from '../config/db.js';
  * @param {string} otp - The 6-digit delivery OTP.
  */
 export async function sendDeliveryOtpNotification(customerId, orderDisplayId, otp) {
-  console.log(`[NotificationService] Delivering OTP for Order ${orderDisplayId} to Customer ${customerId}`);
+  console.log(
+    `[NotificationService] Delivering OTP for Order ${orderDisplayId} to Customer ${customerId}`
+  );
 
   // 1. Database Notification Persistence
-  // Insert a notification record so the customer app can fetch it via Supabase.
   try {
     const { error } = await supabase
       .from('notifications')
@@ -19,47 +20,63 @@ export async function sendDeliveryOtpNotification(customerId, orderDisplayId, ot
         user_id: customerId,
         title: 'Delivery Verification OTP',
         body: `Your delivery OTP for order ${orderDisplayId} is ${otp}. Share this with the driver only after verifying your cargo has arrived safely.`,
-        notif_type: 'delivery_otp',
-        metadata: { order_display_id: orderDisplayId }
+        notif_type: 'order_update',
+        metadata: {
+          order_display_id: orderDisplayId,
+          otp,
+        },
       });
 
     if (error) {
-      console.error('[NotificationService] Database insert failed:', error.message);
+      console.error('[NotificationService] Database insert failed:', error);
     } else {
-      console.log('[NotificationService] Secure database notification record created successfully.');
+      console.log('[NotificationService] Notification inserted successfully');
     }
   } catch (dbErr) {
-    console.error('[NotificationService] Database connection error during notification insert:', dbErr.message);
+    console.error(
+      '[NotificationService] Database connection error during notification insert:',
+      dbErr.message
+    );
   }
 
-  // 2. Firebase Cloud Messaging (FCM) Push Notification Stub
-  if (firebaseAdmin) {
+  // 2. Firebase Cloud Messaging (FCM) Push Notification
+  if (firebaseAdmin && firebaseAdmin.messaging) {
     try {
-      // In a production app, we would fetch the user's registered FCM token(s)
-      // from a user_tokens or profiles table:
+      // In production: fetch user FCM token from DB
       // const fcmToken = await getUserFcmToken(customerId);
-      //
-      // and call the FCM admin messaging library:
-      // await firebaseAdmin.messaging().send({
-      //   token: fcmToken,
-      //   notification: {
-      //     title: 'Delivery Verification OTP',
-      //     body: `Your OTP is ${otp}`,
-      //   },
-      //   data: { orderDisplayId }
-      // });
-      console.log(`[NotificationService] [FCM] Push Notification stub: Message sent for customer ${customerId}`);
-    } catch (fcmErr) {
-      console.error('[NotificationService] [FCM] FCM delivery failed:', fcmErr.message);
+
+      // Example safe structure (no crash if not configured)
+      console.log(`[FCM] Preparing push for user ${customerId}`);
+
+      /*
+      await firebaseAdmin.messaging().send({
+        token: fcmToken,
+        notification: {
+          title: 'Delivery Verification OTP',
+          body: `Your OTP is ${otp}`
+        },
+        data: {
+          orderDisplayId
+        }
+      });
+      */
+
+      console.log(`[FCM] Push Notification stub executed for ${customerId}`);
+    } catch (err) {
+      console.warn('[FCM] Skipped due to error:', err.message);
     }
   } else {
-    console.warn('[NotificationService] [FCM] Firebase Admin is not configured. Skipping FCM push notification.');
+    console.warn('[FCM] Firebase not configured — skipping push notification');
   }
 
-  // 3. SMS Gateway (e.g., Twilio) Stub
+  // 3. SMS Gateway (e.g. Twilio) Stub
   if (process.env.TWILIO_AUTH_TOKEN) {
-    console.log(`[NotificationService] [SMS] SMS stub: Sending SMS to customer phone containing OTP ${otp}`);
+    console.log(
+      `[NotificationService] [SMS] SMS stub: Sending SMS to customer phone containing OTP ${otp}`
+    );
   } else {
-    console.log(`[NotificationService] [SMS] SMS stub: No SMS gateway configured. Logging OTP out-of-band: ${otp}`);
+    console.log(
+      `[NotificationService] [SMS] SMS stub: No SMS gateway configured. Logging OTP out-of-band: ${otp}`
+    );
   }
 }

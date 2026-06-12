@@ -957,7 +957,7 @@ describe('Delivery OTP Verification and Milestones', () => {
     const notification = m.store.notifications.find(n => n.user_id === 'customer-456');
     expect(notification).toBeTruthy();
     expect(notification.body).toContain(order.delivery_otp);
-    expect(notification.notif_type).toBe('delivery_otp');
+    expect(notification.notif_type).toBe('order_update');
   });
 
   it('fails OTP verification if missing OTP', async () => {
