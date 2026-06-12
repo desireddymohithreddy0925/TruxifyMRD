@@ -288,6 +288,7 @@ create table if not exists orders (
   platform_fee         int not null default 0,
   total_amount         int not null default 0,
   cancellation_fee     int not null default 0,
+  cancellation_reason  text,
 
   -- Payment
   payment_method_id    uuid,                                  -- payment_methods.id

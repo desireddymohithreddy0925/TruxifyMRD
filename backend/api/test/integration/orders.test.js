@@ -1542,3 +1542,232 @@ describe('POST /api/orders/predict-demand — ML demand prediction', () => {
     expect(res.body.details).toBe('ML service unavailable');
   });
 });
+
+describe('Customer actions: change-drop and cancel endpoints', () => {
+  beforeEach(() => {
+    // reset store and calls
+    m.store.orders = [];
+    m.store.order_timeline = [];
+    m.calls.length = 0;
+    routeEstimateMock.mockReset();
+    routeEstimateMock.mockResolvedValue({ distanceKm: 100 });
+  });
+
+  it('allows customer to change drop and returns recalculated pricing', async () => {
+    m.store.orders.push({
+      id: 'order-change-1',
+      customer_id: CUSTOMER_HEADERS['x-user-id'],
+      order_display_id: 'OD-CHANGE-1',
+      pickup_lat: 19.0760,
+      pickup_lng: 72.8777,
+      drop_lat: 28.7041,
+      drop_lng: 77.1025,
+      weight_tonnes: 3,
+      is_fragile: false,
+      is_stackable: true,
+      status: 'pending'
+    });
+
+    const app = buildApp();
+
+    const res = await request(app)
+      .put('/api/orders/OD-CHANGE-1/change-drop')
+      .set(CUSTOMER_HEADERS)
+      .send({ drop_address: 'New Drop Place', drop_lat: 22.22, drop_lng: 88.88 });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('pricing');
+    expect(res.body.pricing).toHaveProperty('total_amount');
+    const stored = m.store.orders.find(o => o.id === 'order-change-1');
+    expect(stored.drop_address).toBe('New Drop Place');
+    expect(stored.drop_lat).toBe(22.22);
+    expect(stored.drop_lng).toBe(88.88);
+  });
+
+  it('allows customer to cancel order and returns cancellation_fee and persists reason', async () => {
+    m.store.orders.push({
+      id: 'order-cancel-1',
+      customer_id: CUSTOMER_HEADERS['x-user-id'],
+      order_display_id: 'OD-CANCEL-1',
+      status: 'pending',
+      cancellation_fee: 500
+    });
+
+    const app = buildApp();
+
+    const res = await request(app)
+      .post('/api/orders/OD-CANCEL-1/cancel')
+      .set(CUSTOMER_HEADERS)
+      .send({ reason: 'Change of plans' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('cancellation_fee');
+    expect(res.body.cancellation_fee).toBe(500);
+    const stored = m.store.orders.find(o => o.id === 'order-cancel-1');
+    expect(stored.status).toBe('cancelled');
+    expect(stored.cancellation_reason).toBe('Change of plans');
+  });
+
+  it('rejects cancel when requester is not the order owner', async () => {
+    m.store.orders.push({
+      id: 'order-cancel-2',
+      customer_id: CUSTOMER_HEADERS['x-user-id'],
+      order_display_id: 'OD-CANCEL-2',
+      status: 'pending',
+      cancellation_fee: 300
+    });
+
+    const app = buildApp();
+
+    const res = await request(app)
+      .post('/api/orders/OD-CANCEL-2/cancel')
+      .set({ 'x-user-id': 'some-other-user', 'x-user-role': 'customer' })
+      .send({ reason: 'Not owner' });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('rejects change-drop when requester is not the order owner', async () => {
+    m.store.orders.push({
+      id: 'order-change-2',
+      customer_id: CUSTOMER_HEADERS['x-user-id'],
+      order_display_id: 'OD-CHANGE-2',
+      pickup_lat: 19.0760,
+      pickup_lng: 72.8777,
+      drop_lat: 28.7041,
+      drop_lng: 77.1025,
+      weight_tonnes: 3,
+      is_fragile: false,
+      is_stackable: true,
+      status: 'pending'
+    });
+
+    const app = buildApp();
+
+    const res = await request(app)
+      .put('/api/orders/OD-CHANGE-2/change-drop')
+      .set({ 'x-user-id': 'some-other-user', 'x-user-role': 'customer' })
+      .send({ drop_address: 'New Drop Place', drop_lat: 22.22, drop_lng: 88.88 });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('rejects cancel when order is already delivered', async () => {
+    m.store.orders.push({
+      id: 'order-cancel-delivered',
+      customer_id: CUSTOMER_HEADERS['x-user-id'],
+      order_display_id: 'OD-CANCEL-DELIVERED',
+      status: 'delivered',
+      cancellation_fee: 500
+    });
+
+    const app = buildApp();
+
+    const res = await request(app)
+      .post('/api/orders/OD-CANCEL-DELIVERED/cancel')
+      .set(CUSTOMER_HEADERS)
+      .send({ reason: 'delivered' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Order cannot be cancelled after delivery or payment release.');
+  });
+
+  it('rejects cancel when payment is already released', async () => {
+    m.store.orders.push({
+      id: 'order-cancel-released',
+      customer_id: CUSTOMER_HEADERS['x-user-id'],
+      order_display_id: 'OD-CANCEL-RELEASED',
+      status: 'payment_released',
+      cancellation_fee: 500
+    });
+
+    const app = buildApp();
+
+    const res = await request(app)
+      .post('/api/orders/OD-CANCEL-RELEASED/cancel')
+      .set(CUSTOMER_HEADERS)
+      .send({ reason: 'payment released' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Order cannot be cancelled after delivery or payment release.');
+  });
+
+  it('returns 400 when route estimate computation fails during change-drop', async () => {
+    m.store.orders.push({
+      id: 'order-change-fail',
+      customer_id: CUSTOMER_HEADERS['x-user-id'],
+      order_display_id: 'OD-CHANGE-FAIL',
+      pickup_lat: 19.0760,
+      pickup_lng: 72.8777,
+      drop_lat: 28.7041,
+      drop_lng: 77.1025,
+      weight_tonnes: 3,
+      is_fragile: false,
+      is_stackable: true,
+      status: 'pending'
+    });
+
+    routeEstimateMock.mockRejectedValue(new Error('OSRM service down'));
+
+    const app = buildApp();
+
+    const res = await request(app)
+      .put('/api/orders/OD-CHANGE-FAIL/change-drop')
+      .set(CUSTOMER_HEADERS)
+      .send({ drop_address: 'New Drop Place', drop_lat: 22.22, drop_lng: 88.88 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Unable to compute new pricing for the requested drop.');
+    expect(res.body.details).toBe('OSRM service down');
+  });
+
+  it('returns 500 when weight_tonnes is missing in DB during change-drop', async () => {
+    m.store.orders.push({
+      id: 'order-change-no-weight',
+      customer_id: CUSTOMER_HEADERS['x-user-id'],
+      order_display_id: 'OD-CHANGE-NO-WEIGHT',
+      pickup_lat: 19.0760,
+      pickup_lng: 72.8777,
+      drop_lat: 28.7041,
+      drop_lng: 77.1025,
+      weight_tonnes: null,
+      is_fragile: false,
+      is_stackable: true,
+      status: 'pending'
+    });
+
+    const app = buildApp();
+
+    const res = await request(app)
+      .put('/api/orders/OD-CHANGE-NO-WEIGHT/change-drop')
+      .set(CUSTOMER_HEADERS)
+      .send({ drop_address: 'New Drop Place', drop_lat: 22.22, drop_lng: 88.88 });
+
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('Data inconsistency: Order is missing weight_tonnes.');
+  });
+
+  it('returns 404 for change-drop with non-existent order_display_id', async () => {
+    const app = buildApp();
+
+    const res = await request(app)
+      .put('/api/orders/OD-NONEXISTENT/change-drop')
+      .set(CUSTOMER_HEADERS)
+      .send({ drop_address: 'New Drop Place', drop_lat: 22.22, drop_lng: 88.88 });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Order not found.');
+  });
+
+  it('returns 404 for cancel with non-existent order_display_id', async () => {
+    const app = buildApp();
+
+    const res = await request(app)
+      .post('/api/orders/OD-NONEXISTENT/cancel')
+      .set(CUSTOMER_HEADERS)
+      .send({ reason: 'Non-existent' });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Order not found.');
+  });
+});

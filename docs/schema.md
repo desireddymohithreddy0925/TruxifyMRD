@@ -126,6 +126,7 @@ erDiagram
         text goods_type
         numeric weight_tonnes
         int total_amount
+        text cancellation_reason
         text driver_name
         text eta
     }
@@ -433,7 +434,7 @@ graph LR
 
 | Table | Purpose | Key Columns | Links To |
 |-------|---------|-------------|----------|
-| `orders` | Core booking record | `order_display_id`, `customer_id`, `driver_id`, `status` | `profiles.id`, `trucks.id` |
+| `orders` | Core booking record | `order_display_id`, `customer_id`, `driver_id`, `status`, `cancellation_reason` | `profiles.id`, `trucks.id` |
 | `order_timeline` | Milestone events per order | `order_display_id`, `milestone`, `completed` | `orders.order_display_id` |
 | `saved_addresses` | Customer saved locations | `user_id`, `label`, `lat/lng` | `profiles.id` |
 | `payment_methods` | Customer payment options | `user_id`, `method_type`, `display_label` | `profiles.id` |

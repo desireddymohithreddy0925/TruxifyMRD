@@ -14,6 +14,7 @@ import {
   verifyDeliverySchema,
   predictDemandSchema
 } from '../validation/requestSchemas.js';
+import { changeDropSchema, cancelOrderSchema } from '../validation/requestSchemas.js';
 import { awardReputationPoints } from '../services/reputation.js';
 import { sendDeliveryOtpNotification } from '../services/notificationService.js';
 import { predictDemand } from '../services/ml.js';
@@ -609,6 +610,111 @@ router.post('/:id/verify-delivery', authenticate, requireRole(['driver']), verif
     res.json({ message: 'Delivery verified successfully! Payment released to driver.', order: responseOrder });
   } catch (err) {
     res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// ============================================================================
+// 10. CHANGE DROP (CUSTOMER)
+// ============================================================================
+router.put('/:id/change-drop', authenticate, requireRole(['customer']), validateParams(paramIdSchema), validateBody(changeDropSchema), async (req, res) => {
+  const orderId = req.params.id; // this is order_display_id from client
+  const { drop_address, drop_lat, drop_lng } = req.body;
+
+  try {
+    const { data: order, error: orderErr } = await supabase.from('orders').select('*').eq('order_display_id', orderId).maybeSingle();
+    if (orderErr) return res.status(500).json({ error: 'Failed to fetch order.', details: orderErr.message });
+    if (!order) return res.status(404).json({ error: 'Order not found.' });
+    if (order.customer_id !== req.user.id) return res.status(403).json({ error: 'Access Denied: You do not own this order.' });
+    if (order.weight_tonnes == null) return res.status(500).json({ error: 'Data inconsistency: Order is missing weight_tonnes.' });
+
+    // Recalculate pricing based on new drop location
+    let pricing;
+    try {
+      const routeEstimate = await getRouteEstimate({
+        pickupLat: Number(order.pickup_lat),
+        pickupLng: Number(order.pickup_lng),
+        dropLat: Number(drop_lat),
+        dropLng: Number(drop_lng),
+      });
+
+      pricing = computeOrderPricing({
+        pickupLat:  Number(order.pickup_lat),
+        pickupLng:  Number(order.pickup_lng),
+        dropLat:    Number(drop_lat),
+        dropLng:    Number(drop_lng),
+        weightTonnes: Number(order.weight_tonnes),
+        roadDistanceKm: routeEstimate?.distanceKm,
+        isFragile:   Boolean(order.is_fragile),
+        isStackable: Boolean(order.is_stackable),
+      });
+    } catch (pricingErr) {
+      console.error('Pricing computation error for change-drop:', pricingErr.message);
+      return res.status(400).json({ error: 'Unable to compute new pricing for the requested drop.', details: pricingErr.message });
+    }
+
+    const updates = {
+      drop_address,
+      drop_lat: Number(drop_lat),
+      drop_lng: Number(drop_lng),
+      base_freight: pricing.baseFreight,
+      toll_estimate: pricing.tollEstimate,
+      platform_fee: pricing.platformFee,
+      total_amount: pricing.totalAmount,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data: updatedOrder, error: updateErr } = await supabase.from('orders').update(updates).eq('order_display_id', orderId).select('*').single();
+    if (updateErr) return res.status(500).json({ error: 'Failed to update order.', details: updateErr.message });
+
+    // Update timeline entry for change-drop if present (best-effort)
+    try {
+      await supabase.from('order_timeline').insert({ order_display_id: order.order_display_id, milestone: 'Drop Changed', milestone_time: new Date().toISOString(), completed: true, sort_order: 25 });
+    } catch (timelineErr) {
+      console.warn('Failed to update timeline for change-drop:', timelineErr.message);
+    }
+
+    return res.json({
+      message: 'Drop location updated successfully.',
+      pricing: {
+        base_freight: pricing.baseFreight,
+        toll_estimate: pricing.tollEstimate,
+        platform_fee: pricing.platformFee,
+        total_amount: pricing.totalAmount,
+      },
+      order: updatedOrder,
+    });
+  } catch (err) {
+    console.error('Change drop exception:', err.message);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// ============================================================================
+// 11. CANCEL ORDER (CUSTOMER)
+// ============================================================================
+router.post('/:id/cancel', authenticate, requireRole(['customer']), validateParams(paramIdSchema), validateBody(cancelOrderSchema), async (req, res) => {
+  const orderId = req.params.id; // this is order_display_id from client
+  const { reason = null } = req.body || {};
+
+  try {
+    const { data: order, error: orderErr } = await supabase.from('orders').select('*').eq('order_display_id', orderId).maybeSingle();
+    if (orderErr) return res.status(500).json({ error: 'Failed to fetch order.', details: orderErr.message });
+    if (!order) return res.status(404).json({ error: 'Order not found.' });
+    if (order.customer_id !== req.user.id) return res.status(403).json({ error: 'Access Denied: You do not own this order.' });
+
+    if (['delivered', 'payment_released'].includes(order.status)) {
+      return res.status(400).json({ error: 'Order cannot be cancelled after delivery or payment release.' });
+    }
+
+    const { data: updatedOrder, error: updateErr } = await supabase.from('orders').update({ status: 'cancelled', cancellation_reason: reason, updated_at: new Date().toISOString() }).eq('order_display_id', orderId).select('cancellation_fee, order_display_id, status, cancellation_reason').single();
+    if (updateErr) return res.status(500).json({ error: 'Failed to cancel order.', details: updateErr.message });
+
+    const cancellationFee = updatedOrder?.cancellation_fee ?? 0;
+
+    return res.json({ message: 'Order cancelled successfully.', cancellation_fee: cancellationFee });
+  } catch (err) {
+    console.error('Cancel order exception:', err.message);
+    return res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 

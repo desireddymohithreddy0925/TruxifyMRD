@@ -85,6 +85,72 @@ class OrderService {
     return body['order']?['order_display_id']?.toString() ?? '';
   }
 
+  Future<Map<String, dynamic>> changeDrop({
+    required String orderDisplayId,
+    required String dropAddress,
+    required double dropLat,
+    required double dropLng,
+  }) async {
+    final token = _client.auth.currentSession?.accessToken;
+    final userId = SupabaseService.requireUserId();
+
+    final uri = Uri.parse('$_apiBaseUrl/api/orders/$orderDisplayId/change-drop');
+
+    final response = await _httpClient.put(
+      uri,
+      headers: <String, String>{
+        'Content-Type': 'application/json',
+        if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+        'x-user-id': userId,
+        'x-user-role': 'customer',
+      },
+      body: jsonEncode(<String, dynamic>{
+        'drop_address': dropAddress,
+        'drop_lat': dropLat,
+        'drop_lng': dropLng,
+      }),
+    );
+
+    final body = response.body.isNotEmpty ? jsonDecode(response.body) as Map<String, dynamic> : <String, dynamic>{};
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw StateError(body['error']?.toString() ?? 'Failed to change drop via backend API.');
+    }
+
+    return body;
+  }
+
+  Future<Map<String, dynamic>> cancelOrder({
+    required String orderDisplayId,
+    String? reason,
+  }) async {
+    final token = _client.auth.currentSession?.accessToken;
+    final userId = SupabaseService.requireUserId();
+
+    final uri = Uri.parse('$_apiBaseUrl/api/orders/$orderDisplayId/cancel');
+
+    final response = await _httpClient.post(
+      uri,
+      headers: <String, String>{
+        'Content-Type': 'application/json',
+        if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+        'x-user-id': userId,
+        'x-user-role': 'customer',
+      },
+      body: jsonEncode(<String, dynamic>{
+        if (reason != null) 'reason': reason,
+      }),
+    );
+
+    final body = response.body.isNotEmpty ? jsonDecode(response.body) as Map<String, dynamic> : <String, dynamic>{};
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw StateError(body['error']?.toString() ?? 'Failed to cancel order via backend API.');
+    }
+
+    return body;
+  }
+
   Future<Map<String, dynamic>?> fetchOrderById(String orderDisplayId) async {
     final userId = SupabaseService.requireUserId();
 

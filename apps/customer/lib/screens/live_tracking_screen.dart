@@ -182,100 +182,173 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen>
   }
 
   Future<void> _showChangeDrop() async {
-    final newDropController = TextEditingController(text: 'Bhiwadi, Rajasthan');
+    final newDropController = TextEditingController(text: _order?['drop_address']?.toString() ?? '');
+    final latController = TextEditingController(text: (_order?['drop_lat']?.toString() ?? ''));
+    final lngController = TextEditingController(text: (_order?['drop_lng']?.toString() ?? ''));
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return Padding(
-          padding:
-              EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Change Drop',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w800)),
-                const SizedBox(height: 14),
-                TextField(
-                    controller: newDropController,
-                    decoration:
-                        const InputDecoration(labelText: 'New drop location')),
-                const SizedBox(height: 16),
-                InfoCard(
-                  child: Row(
-                    children: [
-                      const Icon(Icons.attach_money_rounded,
-                          color: TruxifyColors.accentDark),
-                      const SizedBox(width: 10),
-                      Expanded(
-                          child: Text('New estimated price: ₹7,120',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyLarge
-                                  ?.copyWith(fontWeight: FontWeight.w700))),
-                    ],
+        bool isLoading = false;
+        String? pricingText;
+
+        return StatefulBuilder(builder: (context, setModalState) {
+          return Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Change Drop',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 14),
+                  TextField(
+                      controller: newDropController,
+                      decoration: const InputDecoration(labelText: 'New drop location')),
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    Flexible(
+                      child: TextField(
+                        controller: latController,
+                        keyboardType: TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(labelText: 'Latitude'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: TextField(
+                        controller: lngController,
+                        keyboardType: TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(labelText: 'Longitude'),
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 16),
+                  InfoCard(
+                    child: Row(
+                      children: [
+                        const Icon(Icons.attach_money_rounded, color: TruxifyColors.accentDark),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            (pricingText ?? 'New estimated price: calculating...'),
+                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                PrimaryButton(
-                    label: 'Request Change',
-                    onPressed: () => Navigator.of(context).pop()),
-              ],
+                  const SizedBox(height: 16),
+                  PrimaryButton(
+                    label: isLoading ? 'Requesting...' : 'Request Change',
+                    onPressed: isLoading
+                        ? null
+                        : () async {
+                            final addr = newDropController.text.trim();
+                            final lat = double.tryParse(latController.text.trim());
+                            final lng = double.tryParse(lngController.text.trim());
+                            if (addr.isEmpty || lat == null || lng == null) {
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter valid address and coordinates')));
+                              return;
+                            }
+
+                            setModalState(() => isLoading = true);
+                            try {
+                              final resp = await _orderService.changeDrop(
+                                orderDisplayId: widget.orderId,
+                                dropAddress: addr,
+                                dropLat: lat,
+                                dropLng: lng,
+                              );
+
+                              final pricing = resp['pricing'];
+                              final total = pricing != null ? pricing['total_amount'] : null;
+                              setModalState(() => pricingText = total != null ? 'New estimated price: ₹${total.toString()}' : 'Price updated');
+
+                              // refresh outer order state
+                              await _loadOrder();
+
+                              if (!mounted) return;
+                              Navigator.of(context).pop();
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Drop location updated successfully')));
+                            } catch (e) {
+                              setModalState(() => isLoading = false);
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to change drop: $e')));
+                            }
+                          },
+                  ),
+                ],
+              ),
             ),
-          ),
-        );
+          );
+        });
       },
     );
+
     newDropController.dispose();
+    latController.dispose();
+    lngController.dispose();
   }
 
   Future<void> _showCancel() async {
+    bool isLoading = false;
+    String? feeText = _order?['cancellation_fee'] != null ? 'Cancellation fee ₹${_order!['cancellation_fee']}' : null;
+
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.warning_amber_rounded,
-                  color: TruxifyColors.warning, size: 42),
-              const SizedBox(height: 10),
-              Text('Cancellation fee ₹680',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 6),
-              Text('This fee is charged for cancelling after assignment.',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: TruxifyColors.adaptiveSecondaryText(context))),
-              const SizedBox(height: 18),
-              PrimaryButton(
-                  label: 'Confirm Cancel',
+        return StatefulBuilder(builder: (context, setModalState) {
+          return Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: TruxifyColors.warning, size: 42),
+                const SizedBox(height: 10),
+                Text(feeText ?? 'Cancellation fee calculating...',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 6),
+                Text('This fee is charged for cancelling after assignment.', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: TruxifyColors.adaptiveSecondaryText(context))),
+                const SizedBox(height: 18),
+                PrimaryButton(
+                  label: isLoading ? 'Cancelling...' : 'Confirm Cancel',
                   backgroundColor: TruxifyColors.error,
-                  onPressed: () => Navigator.of(context).pop()),
-            ],
-          ),
-        );
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          setModalState(() => isLoading = true);
+                          try {
+                            final resp = await _orderService.cancelOrder(orderDisplayId: widget.orderId);
+                            final fee = resp['cancellation_fee'];
+                            await _loadOrder();
+                            if (!mounted) return;
+                            Navigator.of(context).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Order cancelled. Fee: ₹${fee ?? 0}')));
+                          } catch (e) {
+                            setModalState(() => isLoading = false);
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to cancel order: $e')));
+                          }
+                        },
+                ),
+              ],
+            ),
+          );
+        });
       },
     );
   }
