@@ -16,6 +16,18 @@ describe('profileCache utility', () => {
       expect(profile).toBeNull();
     });
 
+    it('returns null gracefully and does not throw if db.js is mocked as an empty object (Vitest mock proxy behavior)', async () => {
+      vi.doMock('../../src/config/db.js', () => ({}));
+
+      const { getCachedProfile, setCachedProfile, invalidateCachedProfile } = await import('../../src/lib/profileCache.js');
+      
+      const profile = await getCachedProfile('some-uid');
+      expect(profile).toBeNull();
+      
+      await expect(setCachedProfile('some-uid', { id: '123' })).resolves.toBeUndefined();
+      await expect(invalidateCachedProfile('some-uid')).resolves.toBeUndefined();
+    });
+
     it('returns null if firebaseUid is not provided', async () => {
       const redisClientMock = {
         get: vi.fn(),

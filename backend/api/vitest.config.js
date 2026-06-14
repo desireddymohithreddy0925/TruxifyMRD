@@ -12,11 +12,11 @@
 import { defineConfig } from 'vitest/config';
 import fs from 'node:fs';
 
-const getSafeRealPath = (path) => {
+const getSafeRealPath = (dirPath) => {
   try {
-    return fs.realpathSync(path);
+    return fs.realpathSync(dirPath);
   } catch (err) {
-    return path;
+    return dirPath;
   }
 };
 
