@@ -50,8 +50,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadProfile() async {
     final connectivity = await Connectivity().checkConnectivity();
-    final hasNetwork = connectivity.isNotEmpty && !connectivity.contains(ConnectivityResult.none);
-
+    final hasNetwork = connectivity.isNotEmpty &&
+        !connectivity.contains(ConnectivityResult.none);
     await _cacheManager.open();
 
     if (hasNetwork) {
@@ -239,7 +239,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.fromLTRB(18, 0, 18, 6),
                 child: Text(
                   'Offline mode • Last updated ${_formatLastUpdated(_lastUpdatedLabel)}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: TruxifyColors.accentDark),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: TruxifyColors.accentDark),
                 ),
               ),
             Transform.translate(
@@ -295,7 +298,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: MenuCard(
                 children: [
-                  _DarkModeMenuItem(),
+                  const _ThemeModeTile(),
                   MenuItem(
                     icon: Icons.language_rounded,
                     label: 'Language',
@@ -480,16 +483,22 @@ class _StatColumn extends StatelessWidget {
   }
 }
 
-class _DarkModeMenuItem extends StatelessWidget {
-  const _DarkModeMenuItem();
+class _ThemeModeTile extends StatelessWidget {
+  const _ThemeModeTile();
 
   @override
   Widget build(BuildContext context) {
     final controller = TruxifyScope.of(context);
     final currentTheme = controller.themeMode;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final selectedTheme = currentTheme == ThemeMode.system
+        ? (isDark ? ThemeMode.dark : ThemeMode.light)
+        : currentTheme;
+
     final iconBg =
         isDark ? TruxifyColors.darkAccentLight : TruxifyColors.accentLight;
+
     return Column(
       children: [
         Padding(
@@ -503,8 +512,11 @@ class _DarkModeMenuItem extends StatelessWidget {
                   color: iconBg,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.dark_mode_rounded,
-                    size: 17, color: TruxifyColors.accent),
+                child: const Icon(
+                  Icons.dark_mode_rounded,
+                  size: 17,
+                  color: TruxifyColors.accent,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -516,24 +528,31 @@ class _DarkModeMenuItem extends StatelessWidget {
                       ),
                 ),
               ),
-              Text(
-                currentTheme.name[0].toUpperCase() +
-                    currentTheme.name.substring(1),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: TruxifyColors.adaptiveSecondaryText(context),
+              SegmentedButton<ThemeMode>(
+                showSelectedIcon: false,
+                style: ButtonStyle(
+                  visualDensity: VisualDensity.compact,
+                  padding: WidgetStateProperty.all(
+                    const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
                     ),
-              ),
-              PopupMenuButton<ThemeMode>(
-                onSelected: controller.setThemeMode,
-                icon: Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                  color: TruxifyColors.adaptiveSecondaryText(context),
+                  ),
                 ),
-                itemBuilder: (context) => const [
-                  PopupMenuItem(value: ThemeMode.system, child: Text('System')),
-                  PopupMenuItem(value: ThemeMode.light, child: Text('Light')),
-                  PopupMenuItem(value: ThemeMode.dark, child: Text('Dark')),
+                segments: const [
+                  ButtonSegment<ThemeMode>(
+                    value: ThemeMode.light,
+                    label: Text('Light'),
+                  ),
+                  ButtonSegment<ThemeMode>(
+                    value: ThemeMode.dark,
+                    label: Text('Dark'),
+                  ),
                 ],
+                selected: {selectedTheme},
+                onSelectionChanged: (selection) {
+                  controller.setThemeMode(selection.first);
+                },
               ),
             ],
           ),

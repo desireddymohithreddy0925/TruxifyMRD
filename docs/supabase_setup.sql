@@ -11,9 +11,8 @@
 --      and seed data are ready.
 --
 -- DESIGN PRINCIPLES:
---   1. ALL TABLES ARE INDEPENDENT — zero foreign-key constraints.
---      Related IDs are stored as plain uuid / text columns.
---      Joins happen at the application or API layer.
+--   1. Critical business entities use foreign-key constraints for integrity.
+--      Non-critical analytics / denormalized fields remain application-managed.
 --   2. UUIDs for internal PKs; human-readable display IDs in text columns.
 --   3. Timestamps are always `timestamptz` (UTC-aware).
 --   4. Money is stored as integer (paisa) to avoid float rounding.
@@ -74,6 +73,7 @@ create table if not exists profiles (
   language      text not null default 'en',
   dark_mode     boolean not null default false,
   is_active     boolean not null default true,
+  polygon_wallet_address text,                                  -- Polygon wallet address for escrow deposits
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
@@ -102,6 +102,15 @@ create table if not exists driver_details (
 );
 
 create unique index if not exists idx_driver_details_user on driver_details (user_id);
+create index if not exists idx_driver_details_truck on driver_details (truck_id);
+alter table driver_details
+  add constraint driver_details_user_id_fkey
+  foreign key (user_id) references profiles(id)
+  on update cascade on delete cascade;
+alter table driver_details
+  add constraint driver_details_truck_id_fkey
+  foreign key (truck_id) references trucks(id)
+  on update cascade on delete set null;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -118,6 +127,10 @@ create table if not exists customer_stats (
 );
 
 create unique index if not exists idx_customer_stats_user on customer_stats (user_id);
+alter table customer_stats
+  add constraint customer_stats_user_id_fkey
+  foreign key (user_id) references profiles(id)
+  on update cascade on delete cascade;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -141,6 +154,10 @@ create table if not exists trucks (
 );
 
 create index if not exists idx_trucks_driver on trucks (driver_id);
+alter table trucks
+  add constraint trucks_driver_id_fkey
+  foreign key (driver_id) references profiles(id)
+  on update cascade on delete restrict;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -157,6 +174,10 @@ create table if not exists tyre_diagnostics (
 );
 
 create index if not exists idx_tyre_diag_truck on tyre_diagnostics (truck_id);
+alter table tyre_diagnostics
+  add constraint tyre_diagnostics_truck_id_fkey
+  foreign key (truck_id) references trucks(id)
+  on update cascade on delete cascade;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -177,6 +198,15 @@ create table if not exists truck_maintenance_tickets (
 
 create index if not exists idx_maint_tickets_truck  on truck_maintenance_tickets (truck_id);
 create index if not exists idx_maint_tickets_status on truck_maintenance_tickets (status);
+create index if not exists idx_maint_tickets_driver on truck_maintenance_tickets (driver_id);
+alter table truck_maintenance_tickets
+  add constraint truck_maintenance_tickets_truck_id_fkey
+  foreign key (truck_id) references trucks(id)
+  on update cascade on delete cascade;
+alter table truck_maintenance_tickets
+  add constraint truck_maintenance_tickets_driver_id_fkey
+  foreign key (driver_id) references profiles(id)
+  on update cascade on delete restrict;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -197,6 +227,10 @@ create table if not exists saved_addresses (
 );
 
 create index if not exists idx_saved_addr_user on saved_addresses (user_id);
+alter table saved_addresses
+  add constraint saved_addresses_user_id_fkey
+  foreign key (user_id) references profiles(id)
+  on update cascade on delete cascade;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -214,6 +248,10 @@ create table if not exists payment_methods (
 );
 
 create index if not exists idx_payment_methods_user on payment_methods (user_id);
+alter table payment_methods
+  add constraint payment_methods_user_id_fkey
+  foreign key (user_id) references profiles(id)
+  on update cascade on delete cascade;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -239,6 +277,10 @@ create table if not exists documents (
 );
 
 create index if not exists idx_documents_user     on documents (user_id);
+alter table documents
+  add constraint documents_user_id_fkey
+  foreign key (user_id) references profiles(id)
+  on update cascade on delete cascade;
 create index if not exists idx_documents_type     on documents (doc_type);
 create index if not exists idx_documents_status   on documents (status);
 
@@ -319,6 +361,14 @@ create index if not exists idx_orders_driver       on orders (driver_id);
 create index if not exists idx_orders_status       on orders (status);
 create index if not exists idx_orders_pickup_date  on orders (pickup_date);
 create index if not exists idx_orders_display_id   on orders (order_display_id);
+alter table orders
+  add constraint orders_customer_id_fkey
+  foreign key (customer_id) references profiles(id)
+  on update cascade on delete restrict;
+alter table orders
+  add constraint orders_driver_id_fkey
+  foreign key (driver_id) references profiles(id)
+  on update cascade on delete set null;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -335,6 +385,10 @@ create table if not exists order_timeline (
 );
 
 create index if not exists idx_order_timeline_order on order_timeline (order_display_id);
+alter table order_timeline
+  add constraint order_timeline_order_display_id_fkey
+  foreign key (order_display_id) references orders(order_display_id)
+  on update cascade on delete cascade;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -402,6 +456,10 @@ create table if not exists load_offers (
 create index if not exists idx_load_offers_status     on load_offers (status);
 create index if not exists idx_load_offers_customer   on load_offers (customer_id);
 create index if not exists idx_load_offers_en_route   on load_offers (is_en_route);
+alter table load_offers
+  add constraint load_offers_customer_id_fkey
+  foreign key (customer_id) references profiles(id)
+  on update cascade on delete restrict;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -421,6 +479,14 @@ create table if not exists load_bids (
 create index if not exists idx_load_bids_load   on load_bids (load_id);
 create index if not exists idx_load_bids_driver on load_bids (driver_id);
 create index if not exists idx_load_bids_status on load_bids (status);
+alter table load_bids
+  add constraint load_bids_load_id_fkey
+  foreign key (load_id) references load_offers(id)
+  on update cascade on delete cascade;
+alter table load_bids
+  add constraint load_bids_driver_id_fkey
+  foreign key (driver_id) references profiles(id)
+  on update cascade on delete restrict;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -479,6 +545,10 @@ create table if not exists trip_items (
 );
 
 create index if not exists idx_trip_items_trip on trip_items (trip_display_id);
+alter table trip_items
+  add constraint trip_items_trip_display_id_fkey
+  foreign key (trip_display_id) references trips(trip_display_id)
+  on update cascade on delete cascade;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -502,6 +572,10 @@ create table if not exists trip_stops (
 );
 
 create index if not exists idx_trip_stops_trip on trip_stops (trip_display_id);
+alter table trip_stops
+  add constraint trip_stops_trip_display_id_fkey
+  foreign key (trip_display_id) references trips(trip_display_id)
+  on update cascade on delete cascade;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -525,6 +599,10 @@ create table if not exists route_map_points (
 );
 
 create index if not exists idx_route_map_trip on route_map_points (trip_display_id);
+alter table route_map_points
+  add constraint route_map_points_trip_display_id_fkey
+  foreign key (trip_display_id) references trips(trip_display_id)
+  on update cascade on delete cascade;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -543,6 +621,18 @@ create table if not exists ratings (
 create index if not exists idx_ratings_driver   on ratings (driver_id);
 create index if not exists idx_ratings_customer on ratings (customer_id);
 create index if not exists idx_ratings_order    on ratings (order_display_id);
+alter table ratings
+  add constraint ratings_customer_id_fkey
+  foreign key (customer_id) references profiles(id)
+  on update cascade on delete restrict;
+alter table ratings
+  add constraint ratings_driver_id_fkey
+  foreign key (driver_id) references profiles(id)
+  on update cascade on delete restrict;
+alter table ratings
+  add constraint ratings_order_display_id_fkey
+  foreign key (order_display_id) references orders(order_display_id)
+  on update cascade on delete restrict;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -584,6 +674,20 @@ create table if not exists wallet_transactions (
 create index if not exists idx_wallet_txn_driver on wallet_transactions (driver_id);
 create index if not exists idx_wallet_txn_status on wallet_transactions (status);
 create index if not exists idx_wallet_txn_type   on wallet_transactions (txn_type);
+create index if not exists idx_wallet_txn_order  on wallet_transactions (order_display_id);
+create index if not exists idx_wallet_txn_trip   on wallet_transactions (trip_display_id);
+alter table wallet_transactions
+  add constraint wallet_transactions_driver_id_fkey
+  foreign key (driver_id) references profiles(id)
+  on update cascade on delete restrict;
+alter table wallet_transactions
+  add constraint wallet_transactions_order_display_id_fkey
+  foreign key (order_display_id) references orders(order_display_id)
+  on update cascade on delete restrict;
+alter table wallet_transactions
+  add constraint wallet_transactions_trip_display_id_fkey
+  foreign key (trip_display_id) references trips(trip_display_id)
+  on update cascade on delete restrict;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -619,6 +723,10 @@ create table if not exists notifications (
 
 create index if not exists idx_notifications_user   on notifications (user_id);
 create index if not exists idx_notifications_unread on notifications (user_id, is_read) where is_read = false;
+alter table notifications
+  add constraint notifications_user_id_fkey
+  foreign key (user_id) references profiles(id)
+  on update cascade on delete restrict;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -656,6 +764,10 @@ create table if not exists support_tickets (
 
 create index if not exists idx_support_tickets_user   on support_tickets (user_id);
 create index if not exists idx_support_tickets_status on support_tickets (status);
+alter table support_tickets
+  add constraint support_tickets_user_id_fkey
+  foreign key (user_id) references profiles(id)
+  on update cascade on delete restrict;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -1483,12 +1595,14 @@ $$;
 -- Passwords / auth tokens are managed by Firebase Auth, not Supabase.
 
 -- Seed Profiles (1 customer + 1 driver)
-insert into profiles (id, firebase_uid, role, full_name, phone, email, company_name, language)
+insert into profiles (id, firebase_uid, role, full_name, phone, email, company_name, language, polygon_wallet_address)
 values
   ('a1111111-1111-1111-1111-111111111111', 'firebase_customer_001', 'customer',
-   'Rajesh Kumar', '+919876543210', 'rajesh@truxify.dev', 'Kumar Logistics', 'en'),
+   'Rajesh Kumar', '+919876543210', 'rajesh@truxify.dev', 'Kumar Logistics', 'en',
+   '0x1234567890abcdef1234567890abcdef12345678'),
   ('b2222222-2222-2222-2222-222222222222', 'firebase_driver_001', 'driver',
-   'Suresh Yadav', '+919988776655', 'suresh@truxify.dev', null, 'hi')
+   'Suresh Yadav', '+919988776655', 'suresh@truxify.dev', null, 'hi',
+   null)
 on conflict (firebase_uid) do nothing;
 
 -- Seed Customer Stats
@@ -1509,11 +1623,12 @@ on conflict do nothing;
 
 -- Seed Driver Details
 insert into driver_details (user_id, truck_id, rating, total_trips, completion_rate,
-  is_online, wallet_confirmed, wallet_pending, wallet_total)
+  is_online, wallet_confirmed, wallet_pending, wallet_total, polygon_wallet_address)
 values
   ('b2222222-2222-2222-2222-222222222222',
    'c3333333-3333-3333-3333-333333333333',
-   4.72, 148, 96.50, true, 4500000, 750000, 5250000)
+   4.72, 148, 96.50, true, 4500000, 750000, 5250000,
+   '0xAbcdef1234567890Abcdef1234567890Abcdef12')
 on conflict (user_id) do nothing;
 
 -- Seed Tyre Diagnostics

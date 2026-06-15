@@ -1,7 +1,7 @@
 # 📊 Truxify — Database Schema
 
-> **27 tables · 4 RPC functions · 0 foreign keys**
-> All relationships are logical (application-layer joins). No wired constraints.
+> **27 tables · 4 RPC functions · 27 foreign keys**
+> Critical business entities now use physical referential integrity for core joins and audit trails.
 
 ---
 
@@ -302,15 +302,20 @@ erDiagram
     profiles ||--o{ saved_addresses : "user_id"
     profiles ||--o{ payment_methods : "user_id"
     profiles ||--o{ orders : "customer_id"
+    profiles ||--o{ orders : "driver_id"
     profiles ||--o{ notifications : "user_id"
     profiles ||--o{ support_tickets : "user_id"
     profiles ||--o{ ratings : "customer_id"
+    profiles ||--o{ ratings : "driver_id"
 
     trucks ||--o{ tyre_diagnostics : "truck_id"
     trucks ||--o{ truck_maintenance_tickets : "truck_id"
+    profiles ||--o{ truck_maintenance_tickets : "driver_id"
+    driver_details ||--o| trucks : "truck_id"
 
     orders ||--o{ order_timeline : "order_display_id"
     orders ||--o| load_offers : "order_display_id"
+    orders ||--o{ ratings : "order_display_id"
 
     load_offers ||--o{ load_bids : "load_id"
 
@@ -319,6 +324,9 @@ erDiagram
     trips ||--o{ route_map_points : "trip_display_id"
 
     profiles ||--o{ wallet_transactions : "driver_id"
+    orders ||--o{ ratings : "order_display_id"
+    orders ||--o{ wallet_transactions : "order_display_id"
+    trips ||--o{ wallet_transactions : "trip_display_id"
     profiles ||--o{ processed_batches : "user_id"
     profiles ||--o{ earnings_daily : "driver_id"
     profiles ||--o{ driver_milestones : "driver_id"
@@ -460,7 +468,7 @@ graph LR
 
 | Table | Purpose | Key Columns | Links To |
 |-------|---------|-------------|----------|
-| `wallet_transactions` | Driver earnings/withdrawals ledger | `driver_id`, `amount`, `txn_type`, `status` | `profiles.id` |
+| `wallet_transactions` | Driver earnings/withdrawals ledger | `driver_id`, `amount`, `txn_type`, `status` | `profiles.id`, `orders.order_display_id`, `trips.trip_display_id` |
 | `earnings_daily` | Pre-aggregated daily chart data | `driver_id`, `day_date`, `amount`, `trip_count`, `hours_driven` | `profiles.id` |
 
 ### ⚙️ Operational Layer (1 table)
@@ -473,7 +481,7 @@ graph LR
 
 | Table | Purpose | Key Columns | Links To |
 |-------|---------|-------------|----------|
-| `ratings` | Customer → driver reviews | `order_display_id`, `stars`, `comment` | `profiles.id`, `orders` |
+| `ratings` | Customer → driver reviews | `order_display_id`, `stars`, `comment` | `profiles.id`, `orders.order_display_id` |
 | `milestones` | Gamification achievement definitions | `title`, `threshold`, `metric` | — |
 | `driver_milestones` | Driver progress on milestones | `driver_id`, `milestone_id`, `achieved` | `profiles.id`, `milestones.id` |
 | `notifications` | In-app notification inbox | `user_id`, `title`, `notif_type`, `is_read` | `profiles.id` |

@@ -19,7 +19,7 @@
 import { ethers } from 'ethers';
 
 const ESCROW_ABI = [
-  'function deposit(bytes32 bookingId, address payable driver) external payable',
+  'function deposit(bytes32 bookingId, address payable customer, address payable driver) external payable',
   'function releaseFunds(bytes32 bookingId) external',
   'function refundFunds(bytes32 bookingId) external',
   'function escrows(bytes32 bookingId) external view returns (address customer, address driver, uint256 amount, uint8 status)',
@@ -65,15 +65,20 @@ export function getEscrowBookingId(orderDisplayId) {
  * must never block the response. The Supabase order is the source of truth.
  *
  * @param {string} orderDisplayId
- * @param {string} driverWalletAddress — 0x-prefixed Polygon address
+ * @param {string} customerWalletAddress — 0x-prefixed Polygon address of the customer
+ * @param {string} driverWalletAddress — 0x-prefixed Polygon address of the driver
  * @param {string} amountWei           — amount in wei (string or bigint)
  * @returns {Promise<{txHash: string|null, bookingId: string}>}
  */
-export async function escrowDeposit(orderDisplayId, driverWalletAddress, amountWei) {
+export async function escrowDeposit(orderDisplayId, customerWalletAddress, driverWalletAddress, amountWei) {
   const bookingId = getEscrowBookingId(orderDisplayId);
 
   if (!escrowContract) {
     console.warn('[escrow] Contract not initialised — skipping deposit.');
+    return { txHash: null, bookingId };
+  }
+  if (!ethers.isAddress(customerWalletAddress)) {
+    console.warn(`[escrow] Invalid customer wallet address "${customerWalletAddress}" — skipping deposit.`);
     return { txHash: null, bookingId };
   }
   if (!ethers.isAddress(driverWalletAddress)) {
@@ -82,7 +87,7 @@ export async function escrowDeposit(orderDisplayId, driverWalletAddress, amountW
   }
 
   try {
-    const tx = await escrowContract.deposit(bookingId, driverWalletAddress, {
+    const tx = await escrowContract.deposit(bookingId, customerWalletAddress, driverWalletAddress, {
       value: amountWei,
     });
     console.log(`[escrow] deposit tx submitted: ${tx.hash} for booking ${orderDisplayId}`);

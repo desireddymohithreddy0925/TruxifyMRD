@@ -63,6 +63,33 @@ erDiagram
 });
 
 describe('Database Schema Constraints and RPC Upsert validation in supabase_setup.sql', () => {
+  it('includes the referential integrity migration file', async () => {
+    const migrationSqlPath = path.resolve(__dirname, '../../../../docs/migration_add_referential_integrity.sql');
+    await expect(fs.stat(migrationSqlPath)).resolves.toBeDefined();
+  });
+
+  it('contains the critical foreign key constraints in the migration SQL', async () => {
+    const migrationSqlPath = path.resolve(__dirname, '../../../../docs/migration_add_referential_integrity.sql');
+    const sqlContent = await fs.readFile(migrationSqlPath, 'utf8');
+
+    expect(sqlContent).toMatch(/driver_details_user_id_fkey[\s\S]*references\s+profiles\s*\(\s*id\s*\)[\s\S]*on delete cascade/i);
+    expect(sqlContent).toMatch(/orders_driver_id_fkey[\s\S]*references\s+profiles\s*\(\s*id\s*\)[\s\S]*on delete set null/i);
+    expect(sqlContent).toMatch(/load_bids_load_id_fkey[\s\S]*references\s+load_offers\s*\(\s*id\s*\)[\s\S]*on delete cascade/i);
+    expect(sqlContent).toMatch(/wallet_transactions_trip_display_id_fkey[\s\S]*references\s+trips\s*\(\s*trip_display_id\s*\)[\s\S]*on delete restrict/i);
+    
+    // Validate operational/compliance foreign key constraints
+    expect(sqlContent).toMatch(/order_timeline_order_display_id_fkey[\s\S]*references\s+orders\s*\(\s*order_display_id\s*\)[\s\S]*on delete cascade/i);
+    expect(sqlContent).toMatch(/trip_items_trip_display_id_fkey[\s\S]*references\s+trips\s*\(\s*trip_display_id\s*\)[\s\S]*on delete cascade/i);
+    expect(sqlContent).toMatch(/documents_user_id_fkey[\s\S]*references\s+profiles\s*\(\s*id\s*\)[\s\S]*on delete cascade/i);
+    expect(sqlContent).toMatch(/driver_details_truck_id_fkey[\s\S]*references\s+trucks\s*\(\s*id\s*\)[\s\S]*on delete set null/i);
+
+    // Validate indexes
+    expect(sqlContent).toContain('idx_wallet_txn_order');
+    expect(sqlContent).toContain('idx_wallet_txn_trip');
+    expect(sqlContent).toContain('idx_maint_tickets_driver');
+    expect(sqlContent).toContain('idx_driver_details_truck');
+  });
+
   it('contains the unique constraint on earnings_daily(driver_id, day_date)', async () => {
     const setupSqlPath = path.resolve(__dirname, '../../../../docs/supabase_setup.sql');
     const sqlContent = await fs.readFile(setupSqlPath, 'utf8');
@@ -171,5 +198,6 @@ describe('Database Schema Constraints and RPC Upsert validation in supabase_setu
 
     // schema.md counts
     expect(schemaMd).toContain('27 tables · 4 RPC functions');
+    expect(schemaMd).not.toContain('0 foreign keys');
   });
 });

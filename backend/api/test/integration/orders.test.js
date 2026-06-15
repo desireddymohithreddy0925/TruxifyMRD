@@ -43,12 +43,12 @@ m.supabase.rpc = vi.fn().mockImplementation(async (fnName, args) => {
   }
   return originalRpc(fnName, args);
 });
+let mockRedis = null;
 
 vi.mock('../../src/config/db.js', () => ({
   supabase: m.supabase,
-  // export the rest as undefined so the route imports are safe
   firebaseAdmin: null,
-  redisClient: null,
+  get redisClient() { return mockRedis; },
   mongoDb: null,
 }));
 
@@ -1301,6 +1301,154 @@ describe('Delivery OTP Verification and Milestones', () => {
     const notification = m.store.notifications.find(n => n.user_id === 'customer-456');
     expect(notification).toBeTruthy();
     expect(notification.body).toContain(order.delivery_otp);
+  });
+
+  describe('Redis-based rate limiting & error fallback resilience', () => {
+    let redisStore;
+    let redisCalls;
+    let activeMockRedis;
+    let failingMockRedis;
+
+    beforeEach(() => {
+      redisStore = new Map();
+      redisCalls = [];
+      
+      activeMockRedis = {
+        get: vi.fn(async (key) => {
+          redisCalls.push({ method: 'get', key });
+          return redisStore.get(key);
+        }),
+        incr: vi.fn(async (key) => {
+          redisCalls.push({ method: 'incr', key });
+          const val = (parseInt(redisStore.get(key) || '0', 10) + 1).toString();
+          redisStore.set(key, val);
+          return parseInt(val, 10);
+        }),
+        expire: vi.fn(async (key, ttl) => {
+          redisCalls.push({ method: 'expire', key, ttl });
+          return 1;
+        }),
+        set: vi.fn(async (key, val, mode, ttl) => {
+          redisCalls.push({ method: 'set', key, val, mode, ttl });
+          redisStore.set(key, val);
+          return 'OK';
+        }),
+        del: vi.fn(async (...keys) => {
+          redisCalls.push({ method: 'del', keys });
+          for (const key of keys) {
+            redisStore.delete(key);
+          }
+          return keys.length;
+        })
+      };
+
+      failingMockRedis = {
+        get: vi.fn(async () => { throw new Error('Redis connection lost'); }),
+        incr: vi.fn(async () => { throw new Error('Redis connection lost'); }),
+        expire: vi.fn(async () => { throw new Error('Redis connection lost'); }),
+        set: vi.fn(async () => { throw new Error('Redis connection lost'); }),
+        del: vi.fn(async () => { throw new Error('Redis connection lost'); })
+      };
+
+      mockRedis = null; // defaults to null
+    });
+
+    it('uses active Redis client to store verification failures and locks out after max attempts', async () => {
+      mockRedis = activeMockRedis;
+
+      m.store.orders = [{
+        id: 'order-redis-active',
+        driver_id: 'driver-123',
+        customer_id: 'customer-456',
+        order_display_id: 'ORD-REDIS',
+        delivery_otp: '123456',
+        otp_verified: false,
+        otp_generated_at: new Date().toISOString()
+      }];
+
+      const app = buildApp();
+
+      // Send 1st invalid OTP
+      const res1 = await request(app)
+        .post('/api/orders/order-redis-active/verify-delivery')
+        .set({ 'x-user-id': 'driver-123', 'x-user-role': 'driver' })
+        .send({ otp: '000000' });
+      expect(res1.status).toBe(400);
+      expect(res1.body.error).toContain('Invalid OTP. 4 attempt(s) remaining');
+      expect(redisStore.get('otp_failed_count:order-redis-active')).toBe('1');
+
+      // Send remaining attempts to reach 5
+      for (let i = 0; i < 4; i++) {
+        await request(app)
+          .post('/api/orders/order-redis-active/verify-delivery')
+          .set({ 'x-user-id': 'driver-123', 'x-user-role': 'driver' })
+          .send({ otp: '000000' });
+      }
+
+      expect(redisStore.get('otp_failed_count:order-redis-active')).toBe('5');
+      expect(redisStore.get('otp_lockout:order-redis-active')).toBe('1');
+
+      // Verify next request is blocked with 429 even with correct OTP
+      const res6 = await request(app)
+        .post('/api/orders/order-redis-active/verify-delivery')
+        .set({ 'x-user-id': 'driver-123', 'x-user-role': 'driver' })
+        .send({ otp: '123456' });
+      expect(res6.status).toBe(429);
+      expect(res6.body.error).toContain('Too many failed OTP attempts');
+
+      // Expire the OTP now, so that the In Transit milestone update triggers regeneration and clear
+      m.store.orders[0].otp_generated_at = new Date(Date.now() - 20 * 60 * 1000).toISOString();
+
+      // Milestone change clears lockout in Redis
+      await request(app)
+        .put('/api/orders/order-redis-active/milestones')
+        .set({ 'x-user-id': 'driver-123', 'x-user-role': 'driver' })
+        .send({ milestone: 'In Transit' });
+      expect(redisStore.get('otp_failed_count:order-redis-active')).toBeUndefined();
+      expect(redisStore.get('otp_lockout:order-redis-active')).toBeUndefined();
+    });
+
+    it('gracefully falls back to in-memory rate limiting when Redis client throws error (resilience)', async () => {
+      mockRedis = failingMockRedis;
+
+      m.store.orders = [{
+        id: 'order-redis-failing',
+        driver_id: 'driver-123',
+        customer_id: 'customer-456',
+        order_display_id: 'ORD-FAIL-REDIS',
+        delivery_otp: '123456',
+        otp_verified: false,
+        otp_generated_at: new Date().toISOString()
+      }];
+
+      const app = buildApp();
+
+      // Verify that even if Redis fails, the endpoint handles it gracefully and returns 400 (not 500)
+      const res1 = await request(app)
+        .post('/api/orders/order-redis-failing/verify-delivery')
+        .set({ 'x-user-id': 'driver-123', 'x-user-role': 'driver' })
+        .send({ otp: '000000' });
+      
+      expect(res1.status).toBe(400);
+      expect(res1.body.error).toContain('Invalid OTP. 4 attempt(s) remaining');
+
+      // Lockout is still recorded in memory
+      for (let i = 0; i < 4; i++) {
+        await request(app)
+          .post('/api/orders/order-redis-failing/verify-delivery')
+          .set({ 'x-user-id': 'driver-123', 'x-user-role': 'driver' })
+          .send({ otp: '000000' });
+      }
+
+      // 6th attempt should return 429
+      const res6 = await request(app)
+        .post('/api/orders/order-redis-failing/verify-delivery')
+        .set({ 'x-user-id': 'driver-123', 'x-user-role': 'driver' })
+        .send({ otp: '123456' });
+      
+      expect(res6.status).toBe(429);
+      expect(res6.body.error).toContain('Too many failed OTP attempts');
+    });
   });
 });
 
