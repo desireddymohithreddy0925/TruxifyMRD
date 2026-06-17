@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -40,19 +41,28 @@ class ApiClient {
     SupabaseClient? supabaseClient,
     http.Client? httpClient,
     String? baseUrl,
-  })  : _supabase = supabaseClient ?? Supabase.instance.client,
+  })  : _providedSupabase = supabaseClient,
+        _isClientOwned = httpClient == null,
         _http = httpClient ?? http.Client(),
-        _baseUrl = _normalise(
-          baseUrl ??
-              const String.fromEnvironment(
-                'TRUXIFY_API_BASE_URL',
-                defaultValue: 'http://localhost:5000',
-              ),
-        );
+        _baseUrl = _normalise(_getBaseUrl(baseUrl));
 
-  final SupabaseClient _supabase;
+  final SupabaseClient? _providedSupabase;
+  SupabaseClient get _supabase => _providedSupabase ?? Supabase.instance.client;
   final http.Client _http;
+  final bool _isClientOwned;
   final String _baseUrl;
+
+  static String _getBaseUrl(String? overrideUrl) {
+    if (overrideUrl != null) return overrideUrl;
+    const envUrl = String.fromEnvironment('TRUXIFY_API_BASE_URL');
+    if (envUrl.isNotEmpty) return envUrl;
+    if (kReleaseMode) {
+      throw StateError(
+        'TRUXIFY_API_BASE_URL environment variable is required in release builds.',
+      );
+    }
+    return 'http://localhost:5000';
+  }
 
   static String _normalise(String url) =>
       url.endsWith('/') ? url.substring(0, url.length - 1) : url;
@@ -61,11 +71,12 @@ class ApiClient {
 
   String? get _accessToken => _supabase.auth.currentSession?.accessToken;
 
-  Map<String, String> _headers({String? token}) {
+  Map<String, String> _headers({String? token, Map<String, String>? additionalHeaders}) {
     final t = token ?? _accessToken;
     return <String, String>{
       'Content-Type': 'application/json',
       if (t != null && t.isNotEmpty) 'Authorization': 'Bearer $t',
+      ...?additionalHeaders,
     };
   }
 
@@ -74,7 +85,9 @@ class ApiClient {
       final res = await _supabase.auth.refreshSession();
       return res.session?.accessToken;
     } catch (e) {
-      developer.log('[ApiClient] Token refresh failed: $e', name: 'ApiClient');
+      if (kDebugMode) {
+        developer.log('[ApiClient] Token refresh failed: $e', name: 'ApiClient');
+      }
       return null;
     }
   }
@@ -83,15 +96,18 @@ class ApiClient {
 
   Future<http.Response> _execute(
     Future<http.Response> Function(Map<String, String> headers) fn, {
+    Map<String, String>? additionalHeaders,
     bool isRetry = false,
   }) async {
-    final response = await fn(_headers());
+    final response = await fn(_headers(additionalHeaders: additionalHeaders));
 
     if (response.statusCode == 401 && !isRetry) {
-      developer.log(
-        '[ApiClient] 401 received — attempting token refresh',
-        name: 'ApiClient',
-      );
+      if (kDebugMode) {
+        developer.log(
+          '[ApiClient] 401 received — attempting token refresh',
+          name: 'ApiClient',
+        );
+      }
 
       final newToken = await _refreshedToken();
       if (newToken == null) {
@@ -100,7 +116,7 @@ class ApiClient {
         );
       }
 
-      final retryResponse = await fn(_headers(token: newToken));
+      final retryResponse = await fn(_headers(token: newToken, additionalHeaders: additionalHeaders));
       if (retryResponse.statusCode == 401) {
         throw const ApiAuthException(
           'Authentication failed after token refresh. Please log in again.',
@@ -112,45 +128,67 @@ class ApiClient {
     return response;
   }
 
+  // ── URI building and path normalization ───────────────────────────
+
+  Uri _buildUri(String path) {
+    final cleanPath = path.startsWith('/') ? path : '/$path';
+    return Uri.parse('$_baseUrl$cleanPath');
+  }
+
   // ── HTTP methods ──────────────────────────────────────────────────
 
-  Future<dynamic> get(String path) async {
-    final uri = Uri.parse('$_baseUrl$path');
-    final response = await _execute((h) => _http.get(uri, headers: h));
+  Future<dynamic> get(String path, {Map<String, String>? headers}) async {
+    final uri = _buildUri(path);
+    final response = await _execute(
+      (h) => _http.get(uri, headers: h),
+      additionalHeaders: headers,
+    );
     return _decode(response);
   }
 
-  Future<dynamic> post(String path, {Object? body}) async {
-    final uri = Uri.parse('$_baseUrl$path');
+  Future<dynamic> post(String path, {Object? body, Map<String, String>? headers}) async {
+    final uri = _buildUri(path);
     final encoded = body != null ? jsonEncode(body) : null;
     final response = await _execute(
       (h) => _http.post(uri, headers: h, body: encoded),
+      additionalHeaders: headers,
     );
     return _decode(response);
   }
 
-  Future<dynamic> put(String path, {Object? body}) async {
-    final uri = Uri.parse('$_baseUrl$path');
+  Future<dynamic> put(String path, {Object? body, Map<String, String>? headers}) async {
+    final uri = _buildUri(path);
     final encoded = body != null ? jsonEncode(body) : null;
     final response = await _execute(
       (h) => _http.put(uri, headers: h, body: encoded),
+      additionalHeaders: headers,
     );
     return _decode(response);
   }
 
-  Future<dynamic> patch(String path, {Object? body}) async {
-    final uri = Uri.parse('$_baseUrl$path');
+  Future<dynamic> patch(String path, {Object? body, Map<String, String>? headers}) async {
+    final uri = _buildUri(path);
     final encoded = body != null ? jsonEncode(body) : null;
     final response = await _execute(
       (h) => _http.patch(uri, headers: h, body: encoded),
+      additionalHeaders: headers,
     );
     return _decode(response);
   }
 
-  Future<dynamic> delete(String path) async {
-    final uri = Uri.parse('$_baseUrl$path');
-    final response = await _execute((h) => _http.delete(uri, headers: h));
+  Future<dynamic> delete(String path, {Map<String, String>? headers}) async {
+    final uri = _buildUri(path);
+    final response = await _execute(
+      (h) => _http.delete(uri, headers: h),
+      additionalHeaders: headers,
+    );
     return _decode(response);
+  }
+
+  void dispose() {
+    if (_isClientOwned) {
+      _http.close();
+    }
   }
 
   // ── Response decoding ─────────────────────────────────────────────
@@ -161,10 +199,12 @@ class ApiClient {
       return jsonDecode(response.body);
     }
 
-    developer.log(
-      '[ApiClient] Request failed: ${response.statusCode} ${response.body}',
-      name: 'ApiClient',
-    );
+    if (kDebugMode) {
+      developer.log(
+        '[ApiClient] Request failed: ${response.statusCode} ${response.body}',
+        name: 'ApiClient',
+      );
+    }
 
     String message;
     try {

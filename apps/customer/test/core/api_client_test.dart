@@ -11,6 +11,7 @@ class MockHttpClient extends Mock implements http.Client {}
 class MockSupabaseClient extends Mock implements SupabaseClient {}
 class MockGoTrueClient extends Mock implements GoTrueClient {}
 class MockSession extends Mock implements Session {}
+class MockUser extends Mock implements User {}
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -145,7 +146,7 @@ void main() {
       });
 
       when(() => authClient.refreshSession()).thenAnswer((_) async =>
-          AuthResponse(session: refreshedSession, user: null));
+          AuthResponse(session: refreshedSession, user: MockUser()));
 
       final client = buildClient(
           httpClient: httpClient, supabaseClient: supabaseClient);
@@ -189,7 +190,7 @@ void main() {
               http.Response('{"error":"Unauthorized"}', 401));
 
       when(() => authClient.refreshSession()).thenAnswer((_) async =>
-          AuthResponse(session: refreshedSession, user: null));
+          AuthResponse(session: refreshedSession, user: MockUser()));
 
       final client = buildClient(
           httpClient: httpClient, supabaseClient: supabaseClient);
@@ -234,6 +235,48 @@ void main() {
           isA<ApiException>().having((e) => e.statusCode, 'statusCode', 500),
         ),
       );
+    });
+  });
+
+  // ── Core enhancements ──────────────────────────────────────────────
+
+  group('ApiClient Core Enhancements', () {
+    test('normalises paths with and without leading slash', () async {
+      when(() => httpClient.get(any(), headers: any(named: 'headers')))
+          .thenAnswer((_) async => jsonResponse({'ok': true}));
+
+      final client = buildClient(
+          httpClient: httpClient, supabaseClient: supabaseClient);
+
+      // Path without leading slash
+      await client.get('api/orders');
+      verify(() => httpClient.get(Uri.parse('http://localhost:5000/api/orders'), headers: any(named: 'headers'))).called(1);
+
+      // Path with leading slash
+      await client.get('/api/orders');
+      verify(() => httpClient.get(Uri.parse('http://localhost:5000/api/orders'), headers: any(named: 'headers'))).called(1);
+    });
+
+    test('accepts custom headers and merges them', () async {
+      when(() => httpClient.get(any(), headers: any(named: 'headers')))
+          .thenAnswer((_) async => jsonResponse({'ok': true}));
+
+      final client = buildClient(
+          httpClient: httpClient, supabaseClient: supabaseClient);
+
+      await client.get('/api/orders', headers: {'custom-key': 'custom-val'});
+
+      final captured = verify(
+        () => httpClient.get(any(), headers: captureAny(named: 'headers')),
+      ).captured;
+      final headers = captured.first as Map<String, String>;
+      expect(headers['Authorization'], equals('Bearer $kMockToken'));
+      expect(headers['custom-key'], equals('custom-val'));
+    });
+
+    test('dispose closes http client if owned', () {
+      final client = ApiClient(supabaseClient: supabaseClient);
+      client.dispose();
     });
   });
 }
