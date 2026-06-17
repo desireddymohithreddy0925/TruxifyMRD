@@ -3,15 +3,16 @@ import { supabase, mongoDb, redisClient, firebaseAdmin } from '../config/db.js';
 
 const router = express.Router();
 
-const CHECK_TIMEOUT_MS = 3000;
+const CHECK_TIMEOUT_MS = Number(process.env.HEALTHCHECK_TIMEOUT_MS || 400);
 
 function withTimeout(promise) {
+  let timer;
   return Promise.race([
     promise,
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('timeout')), CHECK_TIMEOUT_MS)
-    ),
-  ]);
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('healthcheck timeout')), CHECK_TIMEOUT_MS);
+    }),
+  ]).finally(() => clearTimeout(timer));
 }
 
 async function checkSupabase() {
@@ -54,6 +55,8 @@ function checkPolygon() {
   return process.env.POLYGON_RPC_URL ? 'configured' : 'not_configured';
 }
 
+const CRITICAL_UNHEALTHY = new Set(['failed', 'not_configured']);
+
 // GET /api/health — full dependency check; returns 503 when a critical service fails
 router.get('/', async (req, res) => {
   const [supabaseStatus, mongoStatus, redisStatus] = await Promise.all([
@@ -71,7 +74,7 @@ router.get('/', async (req, res) => {
   };
 
   const criticalFailed =
-    supabaseStatus === 'failed' || mongoStatus === 'failed';
+    CRITICAL_UNHEALTHY.has(supabaseStatus) || CRITICAL_UNHEALTHY.has(mongoStatus);
 
   const status = criticalFailed ? 'degraded' : 'ok';
   const httpStatus = criticalFailed ? 503 : 200;
