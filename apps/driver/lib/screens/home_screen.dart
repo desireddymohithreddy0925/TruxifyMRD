@@ -14,6 +14,7 @@ import 'package:truxify_driver/widgets/slide_to_confirm_button.dart';
 
 import '../core/app_routes.dart';
 import '../data/mock_data.dart';
+import '../models/app_models.dart';
 import '../services/geocode_service.dart';
 import '../services/marketplace_repository.dart';
 import '../services/route_service.dart';
