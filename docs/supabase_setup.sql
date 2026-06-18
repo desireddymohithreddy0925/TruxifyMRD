@@ -1324,7 +1324,7 @@ begin
     where id = p_load_id
     for update;
 
-  if v_load_status <> 'available' then
+  if v_load_status is null or v_load_status <> 'available' then
     raise exception 'Load offer is no longer available';
   end if;
 
@@ -1334,7 +1334,7 @@ begin
     where id = p_order_id
     for update;
 
-  if v_order_status <> 'pending' then
+  if v_order_status is null or v_order_status <> 'pending' then
     raise exception 'Order is no longer pending';
   end if;
   -- Step 1: Accept the chosen bid
