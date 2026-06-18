@@ -917,6 +917,12 @@ router.put('/:id/change-drop', authenticate, requireRole(['customer']), validate
     if (orderErr) return res.status(500).json({ error: 'Failed to fetch order.', details: orderErr.message });
     if (!order) return res.status(404).json({ error: 'Order not found.' });
     if (order.customer_id !== req.user.id) return res.status(403).json({ error: 'Access Denied: You do not own this order.' });
+    if (order.escrow_status === 'funded') {
+      return res.status(409).json({
+        error: 'Drop location cannot be changed after escrow has been funded.',
+        recovery: 'Cancel this order to receive a refund, then rebook with the correct destination.',
+      });
+    }
     if (order.weight_tonnes == null) return res.status(500).json({ error: 'Data inconsistency: Order is missing weight_tonnes.' });
 
     let pricing;
