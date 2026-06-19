@@ -17,10 +17,10 @@ import {
   verifyDeliverySchema,
   predictDemandSchema
 } from '../validation/requestSchemas.js';
-import { changeDropSchema, cancelOrderSchema } from '../validation/requestSchemas.js';
 import { awardReputationPoints } from '../services/reputation.js';
+import { changeDropSchema, cancelOrderSchema } from '../validation/requestSchemas.js';
 import { buildDepositTx, recordDepositTx, escrowRelease, escrowRefund } from '../services/escrow.js';
-import { sendDeliveryOtpNotification } from '../services/notificationService.js';
+import { sendDeliveryOtpNotification, storeDeliveryOtp, getActiveDeliveryOtp, verifyDeliveryOtp, expireDeliveryOtps } from '../services/notificationService.js';
 import { predictDemand, predictPrice } from '../services/ml.js';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
@@ -111,6 +111,16 @@ const verifyDeliveryLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many delivery verification attempts. Please try again later.' },
+});
+
+// Rate limiter for updating order milestones
+const milestoneLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: process.env.NODE_ENV === 'test' ? 1000 : 5,
+  keyGenerator: (req) => req.user.id,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many milestone updates. Please slow down.' },
 });
 
 // Rate limiter for the predict-demand endpoint
@@ -377,10 +387,6 @@ router.get('/:id', authenticate, validateParams(paramIdSchema), async (req, res)
     }
 
     const responseOrder = { ...order };
-    // Strip delivery OTP for drivers to prevent security bypass
-    if (req.user.role === 'driver' && responseOrder.delivery_otp) {
-      delete responseOrder.delivery_otp;
-    }
 
     const { data: timeline } = await supabase.from('order_timeline').select('milestone, milestone_time, completed, sort_order').eq('order_display_id', order.order_display_id).order('sort_order', { ascending: true });
 
@@ -711,7 +717,7 @@ router.post('/:id/bids/:bidId/accept', authenticate, requireRole(['customer']), 
 // ============================================================================
 // 12. UPDATE ORDER MILESTONE (ASSIGNED DRIVER)
 // ============================================================================
-router.put('/:id/milestones', authenticate, requireRole(['driver']), validateParams(paramIdSchema), validateBody(updateMilestoneSchema), async (req, res) => {
+router.put('/:id/milestones', authenticate, requireRole(['driver']), milestoneLimiter, validateParams(paramIdSchema), validateBody(updateMilestoneSchema), async (req, res) => {
   const orderId = req.params.id;
   const { milestone } = req.body;
 
@@ -735,11 +741,17 @@ router.put('/:id/milestones', authenticate, requireRole(['driver']), validatePar
     const updates = { status, updated_at: new Date().toISOString() };
     let generatedOtp = null;
 
-    if (milestone === 'In Transit' && (!order.delivery_otp || isOtpExpired(order.otp_generated_at))) {
-      generatedOtp = crypto.randomInt(100000, 1000000).toString();
-      updates.delivery_otp = generatedOtp;
-      updates.otp_generated_at = new Date().toISOString();
-      await clearOtpState(orderId);
+    if (milestone === 'In Transit') {
+      const activeOtp = await getActiveDeliveryOtp(orderId);
+      if (!activeOtp) {
+        generatedOtp = crypto.randomInt(100000, 1000000).toString();
+        const stored = await storeDeliveryOtp(orderId, generatedOtp, OTP_TTL_MINUTES);
+        if (stored) {
+          await clearOtpState(orderId);
+        }
+      } else {
+        logger.warn(`[OTP] Driver ${req.user.id} attempted OTP regeneration for order ${orderId}`);
+      }
     }
 
     const { data: updatedOrder, error: updateErr } = await supabase.from('orders').update(updates).eq('id', orderId).select('*').single();
@@ -752,13 +764,7 @@ router.put('/:id/milestones', authenticate, requireRole(['driver']), validatePar
       await sendDeliveryOtpNotification(order.customer_id, order.order_display_id, generatedOtp);
     }
 
-    // Strip delivery_otp from updatedOrder to prevent exposure to drivers
-    const responseOrder = { ...updatedOrder };
-    if (responseOrder.delivery_otp) {
-      delete responseOrder.delivery_otp;
-    }
-
-    const response = { message: 'Milestone updated successfully.', order: responseOrder, milestone, status };
+    const response = { message: 'Milestone updated successfully.', order: updatedOrder, milestone, status };
 
     res.json(response);
   } catch (err) {
@@ -783,19 +789,19 @@ router.post('/:id/verify-delivery', authenticate, requireRole(['driver']), verif
   }
 
   try {
-    const { data: order, error: orderErr } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
+    const { data: order, error: orderErr } = await supabase.from('orders').select('id, order_display_id, driver_id, customer_id, escrow_status, status').eq('id', orderId).maybeSingle();
     if (orderErr || !order) return res.status(404).json({ error: 'Order not found.' });
     if (order.driver_id !== req.user.id) return res.status(403).json({ error: 'Access Denied: You are not assigned to this order.' });
-    if (!order.delivery_otp || order.otp_verified) return res.status(400).json({ error: 'OTP not available or already verified.' });
 
-    // Check OTP expiry
-    if (isOtpExpired(order.otp_generated_at)) {
+    const otpRecord = await getActiveDeliveryOtp(orderId);
+    if (!otpRecord) {
       return res.status(400).json({
-        error: 'OTP has expired. Please request a new delivery OTP.',
+        error: 'OTP not available or has expired. Please request a new delivery OTP.',
       });
     }
 
-    if (order.delivery_otp !== String(otp)) {
+    const submittedHash = crypto.createHash('sha256').update(String(otp)).digest('hex');
+    if (otpRecord.otp_hash !== submittedHash) {
       const count = await recordOtpFailure(orderId);
       const remaining = Math.max(0, OTP_MAX_FAILED_ATTEMPTS - count);
       const message = remaining > 0
@@ -807,15 +813,15 @@ router.post('/:id/verify-delivery', authenticate, requireRole(['driver']), verif
 
     // Successful verification — clear failure state
     await clearOtpState(orderId);
+    await verifyDeliveryOtp(orderId);
 
     const { data: preUpdatedOrder, error: updateErr } = await supabase.from('orders').update({
-      otp_verified: true, updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString()
     })
       .eq('id', orderId)
-      .not('otp_verified', 'eq', true)
       .not('status', 'eq', 'cancelled')
       .not('status', 'eq', 'payment_released')
-      .select('*')
+      .select('id, order_display_id, status')
       .single();
 
     if (updateErr) {
@@ -832,20 +838,9 @@ router.post('/:id/verify-delivery', authenticate, requireRole(['driver']), verif
       return res.status(500).json({ error: 'Failed to complete trip and release payment.', details: rpcErr.message });
     }
 
-    // Fetch the updated order directly from the database as the single source of truth
-    const { data: updatedOrder, error: fetchErr } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('id', orderId)
-      .single();
-
-    if (fetchErr) {
-      logger.error('Failed to fetch updated order:', fetchErr.message);
-      return res.status(500).json({ error: 'Failed to retrieve completed order details.', details: fetchErr.message });
-    }
 
     // Escrow: release funds to driver after successful delivery verification
-    if (updatedOrder.escrow_status === 'funded') {
+    if (order.escrow_status === 'funded') {
       try {
         const { txHash } = await escrowRelease(order.order_display_id);
         if (txHash) {
@@ -859,16 +854,10 @@ router.post('/:id/verify-delivery', authenticate, requireRole(['driver']), verif
         logger.error('[escrow] Release failed for order', orderId, ':', releaseErr.message);
       }
     } else {
-      logger.info(`[escrow] Escrow not funded (status: ${updatedOrder.escrow_status}) — skipping on-chain release.`);
+      logger.info(`[escrow] Escrow not funded (status: ${order.escrow_status}) — skipping on-chain release.`);
     }
 
-    // Strip delivery_otp from updatedOrder to prevent exposure
-    const responseOrder = { ...updatedOrder };
-    if (responseOrder.delivery_otp) {
-      delete responseOrder.delivery_otp;
-    }
-
-    res.json({ message: 'Delivery verified successfully! Payment released to driver.', order: responseOrder });
+    res.json({ message: 'Delivery verified successfully! Payment released to driver.' });
   } catch (err) {
     res.status(500).json({ error: 'Internal Server Error' });
   }
@@ -961,10 +950,22 @@ router.post('/:id/cancel', authenticate, requireRole(['customer']), validatePara
     if (!order) return res.status(404).json({ error: 'Order not found.' });
     if (order.customer_id !== req.user.id) return res.status(403).json({ error: 'Access Denied: You do not own this order.' });
 
+    // Prevent cancellation if delivery OTP was already verified
+    const { data: otpCheck, error: otpCheckErr } = await supabase
+      .from('delivery_otps')
+      .select('id')
+      .eq('order_id', order.id)
+      .eq('verified', true)
+      .limit(1)
+      .maybeSingle();
+
+    if (!otpCheckErr && otpCheck) {
+      return res.status(409).json({ error: 'Cannot cancel: delivery OTP has already been verified.' });
+    }
+
     const { data: updatedOrder, error: updateErr } = await supabase.from('orders')
       .update({ status: 'cancelled', cancellation_reason: reason, updated_at: new Date().toISOString() })
       .eq('order_display_id', orderId)
-      .not('otp_verified', 'eq', true)
       .not('status', 'in', '("delivered","payment_released","cancelled")')
       .select('cancellation_fee, order_display_id, status, cancellation_reason, escrow_status')
       .single();
