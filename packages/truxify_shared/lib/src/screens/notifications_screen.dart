@@ -66,7 +66,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ),
           callback: (payload) {
             final item = NotificationItem.fromMap(
-              payload.newRecord as Map<String, dynamic>,
+              payload.newRecord,
             );
 
             if (_items.any((e) => e.id == item.id)) {
@@ -142,12 +142,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (weeks < 5) {
       return '${weeks} week${weeks == 1 ? '' : 's'} ago';
     }
-    final months = diff.inDays ~/ 30;
-    if (months < 12) {
-      return '${months} month${months == 1 ? '' : 's'} ago';
-    }
     final years = diff.inDays ~/ 365;
-    return '${years} year${years == 1 ? '' : 's'} ago';
+    if (years > 0) {
+      return '${years} year${years == 1 ? '' : 's'} ago';
+    }
+    final months = diff.inDays ~/ 30;
+    return '${months} month${months == 1 ? '' : 's'} ago';
   }
 
   @override
@@ -223,6 +223,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           );
                         },
                       ),
+      ),
     );
   }
 }
