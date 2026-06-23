@@ -7,7 +7,7 @@ import {
 } from '../services/profileService.js';
 import { supabase } from '../config/db.js';
 import { ProfileModel } from '../models/ProfileModel.js';
-import { invalidateCachedProfile } from '../lib/profileCache.js';
+import { invalidateCachedProfile, invalidateCachedSupabaseProfile } from '../lib/profileCache.js';
 
 const router = express.Router();
 
@@ -108,6 +108,9 @@ router.put('/wallet', authenticate, async (req, res) => {
     if (req.user && req.user.uid) {
       void invalidateCachedProfile(req.user.uid);
     }
+    if (req.user && req.user.id) {
+      void invalidateCachedSupabaseProfile(req.user.id);
+    }
 
     res.json({ success: true, walletAddress: normalized });
   } catch (err) {
@@ -152,6 +155,9 @@ router.put('/', authenticate, async (req, res) => {
     // response payload, fire-and-forget is the optimal choice.
     if (req.user && req.user.uid) {
       void invalidateCachedProfile(req.user.uid);
+    }
+    if (req.user && req.user.id) {
+      void invalidateCachedSupabaseProfile(req.user.id);
     }
 
     res.json({
@@ -198,6 +204,9 @@ router.put('/fcm-token', authenticate, async (req, res) => {
     // Invalidate Redis cache — next request will refetch the profile with the new token
     if (req.user.uid) {
       void invalidateCachedProfile(req.user.uid);
+    }
+    if (req.user.id) {
+      void invalidateCachedSupabaseProfile(req.user.id);
     }
 
     return res.json({ success: true, message: 'FCM token updated successfully.' });

@@ -1003,4 +1003,114 @@ describe('authenticate middleware - Redis caching', () => {
       isActive: true
     });
   });
+
+  it('serves a supabase profile from cache and skips the profiles query', async () => {
+    const token = jwt.sign({ iss: 'https://test.supabase.co/auth/v1' }, 'secret');
+    const cached = {
+      id: 'supabase-user-uuid',
+      uid: null,
+      role: 'customer',
+      fullName: 'Cached Supa',
+      phone: '+911111111111',
+      isActive: true,
+    };
+
+    const redisClientMock = {
+      get: vi.fn().mockResolvedValue(JSON.stringify(cached)),
+      set: vi.fn().mockResolvedValue('OK'),
+    };
+
+    const fromSpy = vi.fn();
+    const supabaseMock = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: { id: 'supabase-user-uuid' } },
+          error: null,
+        }),
+      },
+      from: fromSpy,
+    };
+
+    vi.doMock('../../src/config/db.js', () => ({
+      firebaseAdmin: {},
+      supabase: supabaseMock,
+      redisClient: redisClientMock,
+    }));
+
+    const { authenticate } = await import('../../src/middleware/auth.js');
+
+    const req = { headers: { authorization: `Bearer ${token}` } };
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    const next = vi.fn();
+
+    await authenticate(req, res, next);
+
+    expect(redisClientMock.get).toHaveBeenCalledWith('user:profile:sb:supabase-user-uuid');
+    expect(fromSpy).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalled();
+    expect(req.user).toEqual(cached);
+  });
+
+  it('caches a supabase profile bounded by the token expiry', async () => {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const expSeconds = nowSeconds + 120; // token expires in 2 minutes
+    const token = jwt.sign(
+      { iss: 'https://test.supabase.co/auth/v1', exp: expSeconds },
+      'secret'
+    );
+
+    const dbProfile = {
+      id: 'supabase-user-uuid',
+      firebase_uid: null,
+      role: 'customer',
+      full_name: 'Fresh Supa',
+      phone: '+912222222222',
+    };
+
+    const redisClientMock = {
+      get: vi.fn().mockResolvedValue(null),
+      set: vi.fn().mockResolvedValue('OK'),
+    };
+
+    const supabaseMock = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: { id: 'supabase-user-uuid' } },
+          error: null,
+        }),
+      },
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            eq: () => ({
+              maybeSingle: () => Promise.resolve({ data: dbProfile, error: null }),
+            }),
+          }),
+        }),
+      }),
+    };
+
+    vi.doMock('../../src/config/db.js', () => ({
+      firebaseAdmin: {},
+      supabase: supabaseMock,
+      redisClient: redisClientMock,
+    }));
+
+    const { authenticate } = await import('../../src/middleware/auth.js');
+
+    const req = { headers: { authorization: `Bearer ${token}` } };
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    const next = vi.fn();
+
+    await authenticate(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+    const setCall = redisClientMock.set.mock.calls.find(
+      ([key]) => key === 'user:profile:sb:supabase-user-uuid'
+    );
+    expect(setCall).toBeDefined();
+    const ttl = setCall[3];
+    expect(ttl).toBeGreaterThan(0);
+    expect(ttl).toBeLessThanOrEqual(120);
+  });
 });
