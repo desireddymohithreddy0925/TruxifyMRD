@@ -9,6 +9,8 @@ import {
 import { supabase } from '../config/db.js';
 import { ProfileModel } from '../models/ProfileModel.js';
 import { invalidateCachedProfile, invalidateCachedSupabaseProfile } from '../lib/profileCache.js';
+import { validateBody } from '../middleware/validate.js';
+import { updateProfileSchema, updateWalletSchema } from '../validation/requestSchemas.js';
 
 const router = express.Router();
 
@@ -68,7 +70,7 @@ router.get('/:id/name', authenticate, userLimiter, async (req, res) => {
 });
 
 // UPDATE WALLET ADDRESS
-router.put('/wallet', authenticate, userLimiter, async (req, res) => {
+router.put('/wallet', authenticate, userLimiter, validateBody(updateWalletSchema), async (req, res) => {
   const userId = req.user.id;
   const { wallet_address } = req.body;
 
@@ -120,7 +122,7 @@ router.put('/wallet', authenticate, userLimiter, async (req, res) => {
 });
 
 // UPDATE PROFILE (basic version)
-router.put('/', authenticate, userLimiter, async (req, res) => {
+router.put('/', authenticate, userLimiter, validateBody(updateProfileSchema), async (req, res) => {
   try {
     const userId = req.user.id;
     const { full_name, language, dark_mode, is_online } = req.body;
