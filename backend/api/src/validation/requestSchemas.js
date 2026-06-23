@@ -108,7 +108,7 @@ export const updateMilestoneSchema = z.object({
 export const verifyDeliverySchema = z.object({
   otp: z.preprocess(
     (val) => (val === undefined || val === null) ? undefined : String(val),
-    z.string().regex(/^\d{6}$/, { message: 'OTP must be 6 digits' }).optional()
+    z.string().regex(/^\d{6}$/, { message: 'OTP must be 6 digits' })
   )
 });
 
