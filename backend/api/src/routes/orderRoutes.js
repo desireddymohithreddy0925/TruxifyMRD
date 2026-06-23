@@ -355,7 +355,7 @@ router.get('/history', authenticate, userLimiter, requireRole(['customer']), asy
   try {
     const { data: history, error } = await supabase
       .from('orders')
-      .select('id, order_display_id, status, pickup_address, drop_address, pickup_date, total_amount, goods_type, driver_name, eta, created_at')
+      .select('id, order_display_id, status, pickup_address, drop_address, pickup_date, total_amount, goods_type, eta, created_at')
       .eq('customer_id', req.user.id)
       .order('created_at', { ascending: false });
 
