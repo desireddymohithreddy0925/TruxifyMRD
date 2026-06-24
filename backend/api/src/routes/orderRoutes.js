@@ -269,6 +269,7 @@ router.post('/', authenticate, userLimiter, requireRole(['customer']), validateB
         fuel_cost: pricing.fuelCost,
         toll_cost: pricing.tollEstimate,
         net_profit: pricing.netProfit,
+        extra_distance_km: pricing.distanceKm,
         status: 'available'
       });
 
@@ -355,11 +356,19 @@ router.get('/history', authenticate, userLimiter, requireRole(['customer']), asy
   try {
     const { data: history, error } = await supabase
       .from('orders')
-      .select('id, order_display_id, status, pickup_address, drop_address, pickup_date, total_amount, goods_type, driver_name, eta, created_at')
+      .select('id, order_display_id, status, pickup_address, drop_address, pickup_date, total_amount, goods_type, driver_id, eta, created_at')
       .eq('customer_id', req.user.id)
       .order('created_at', { ascending: false });
 
     if (error) return res.status(500).json({ error: 'Failed to fetch history.', details: error.message });
+
+    const driverIds = [...new Set((history || []).filter(o => o.driver_id).map(o => o.driver_id))];
+    if (driverIds.length > 0) {
+      const { data: profiles } = await supabase.from('profiles').select('id, full_name').in('id', driverIds);
+      const driverMap = Object.fromEntries((profiles || []).map(p => [p.id, p.full_name]));
+      (history || []).forEach(o => { o.driver_name = driverMap[o.driver_id] || 'Driver Assigned'; });
+    }
+
     res.json(history);
   } catch (err) {
     res.status(500).json({ error: 'Internal Server Error' });
@@ -946,7 +955,43 @@ router.post('/:id/verify-delivery', authenticate, userLimiter, requireRole(['dri
 });
 
 // ============================================================================
-// 14. CHANGE DROP (CUSTOMER)
+// 14. RESEND DELIVERY OTP (DRIVER)
+// ============================================================================
+router.post('/:id/resend-otp', authenticate, userLimiter, requireRole(['driver']), validateParams(paramIdSchema), async (req, res) => {
+  const orderId = req.params.id;
+
+  try {
+    const { data: order, error: orderErr } = await supabase.from('orders').select('id, order_display_id, driver_id, customer_id, status').eq('id', orderId).maybeSingle();
+    if (orderErr || !order) return res.status(404).json({ error: 'Order not found.' });
+    if (order.driver_id !== req.user.id) return res.status(403).json({ error: 'Access Denied: You are not assigned to this order.' });
+
+    const terminalStatuses = ['delivered', 'cancelled', 'payment_released'];
+    if (terminalStatuses.includes(order.status)) {
+      return res.status(400).json({ error: 'Cannot resend OTP for a completed or cancelled order.' });
+    }
+
+    const otp = crypto.randomInt(100000, 1000000).toString();
+    const stored = await storeDeliveryOtp(orderId, otp, OTP_TTL_MINUTES);
+    if (!stored) {
+      return res.status(500).json({ error: 'Failed to generate delivery OTP.' });
+    }
+
+    await clearOtpState(orderId);
+
+    const notifResult = await sendDeliveryOtpNotification(order.customer_id, order.order_display_id, otp);
+    if (!notifResult.success) {
+      logger.warn(`[OrderRoutes] Resend OTP notification failed for order ${order.order_display_id} — FCM error: ${notifResult.fcm?.error || 'unknown'}`);
+    }
+
+    res.json({ message: 'New delivery OTP sent.', expiresInMinutes: OTP_TTL_MINUTES });
+  } catch (err) {
+    logger.error('[OrderRoutes] Resend OTP error:', err.message);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// ============================================================================
+// 15. CHANGE DROP (CUSTOMER)
 // ============================================================================
 router.put('/:id/change-drop', authenticate, userLimiter, requireRole(['customer']), validateParams(paramIdSchema), validateBody(changeDropSchema), async (req, res) => {
   const orderId = req.params.id; // this is order_display_id from client
@@ -1003,6 +1048,25 @@ router.put('/:id/change-drop', authenticate, userLimiter, requireRole(['customer
     const { data: updatedOrder, error: updateErr } = await supabase.from('orders').update(updates).eq('order_display_id', orderId).select('*').single();
     if (updateErr) return res.status(500).json({ error: 'Failed to update order.', details: updateErr.message });
 
+    const { error: offerUpdateErr } = await supabase
+      .from('load_offers')
+      .update({
+        drop_address,
+        drop_lat: Number(drop_lat),
+        drop_lng: Number(drop_lng),
+        route_label: `${(order.pickup_address || '').split(',')[0]} → ${drop_address.split(',')[0]}`,
+        freight_value: pricing.baseFreight,
+        fuel_cost: pricing.fuelCost,
+        toll_cost: pricing.tollEstimate,
+        net_profit: pricing.netProfit,
+        extra_distance_km: pricing.distanceKm,
+      })
+      .eq('order_display_id', orderId);
+
+    if (offerUpdateErr) {
+      logger.error('Load offer update failed for change-drop:', offerUpdateErr.message);
+    }
+
     try {
       await supabase.from('order_timeline').insert({ order_display_id: order.order_display_id, milestone: 'Drop Changed', milestone_time: new Date().toISOString(), completed: true, sort_order: 25 });
     } catch (timelineErr) {
@@ -1026,7 +1090,7 @@ router.put('/:id/change-drop', authenticate, userLimiter, requireRole(['customer
 });
 
 // ============================================================================
-// 15. CANCEL ORDER AND REFUND ESCROW (CUSTOMER)
+// 16. CANCEL ORDER AND REFUND ESCROW (CUSTOMER)
 // ============================================================================
 router.post('/:id/cancel', authenticate, userLimiter, requireRole(['customer']), validateParams(paramIdSchema), validateBody(cancelOrderSchema), async (req, res) => {
   const orderId = req.params.id; // this is order_display_id from client
@@ -1115,7 +1179,7 @@ router.post('/:id/cancel', authenticate, userLimiter, requireRole(['customer']),
 });
 
 // ============================================================================
-// 16. CONFIRM ESCROW DEPOSIT (CUSTOMER)
+// 17. CONFIRM ESCROW DEPOSIT (CUSTOMER)
 // ============================================================================
 router.post('/:id/confirm-deposit', authenticate, userLimiter, requireRole(['customer']), validateParams(paramIdSchema), validateBody(
   z.object({ txHash: z.string().regex(/^0x([A-Fa-f0-9]{64})$/, 'Invalid transaction hash') }),
@@ -1154,7 +1218,7 @@ router.post('/:id/confirm-deposit', authenticate, userLimiter, requireRole(['cus
 });
 
 // ============================================================================
-// 17. PREDICT RIDE DEMAND (CUSTOMER OR DRIVER)
+// 18. PREDICT RIDE DEMAND (CUSTOMER OR DRIVER)
 // ============================================================================
 router.post('/predict-demand', authenticate, userLimiter, requireRole(['customer', 'driver']), predictDemandLimiter, validateBody(predictDemandSchema), async (req, res) => {
   try {
@@ -1170,9 +1234,9 @@ router.post('/predict-demand', authenticate, userLimiter, requireRole(['customer
 });
 
 // ============================================================================
-// 17. GET DRIVER LOCATION (CUSTOMER OR DRIVER)
+// 19. GET DRIVER LOCATION (CUSTOMER OR DRIVER)
 // ============================================================================
-router.get('/:id/driver-location', authenticate, requireRole(['customer', 'driver']), validateParams(paramIdSchema), async (req, res) => {
+router.get('/:id/driver-location', authenticate, userLimiter, requireRole(['customer', 'driver']), validateParams(paramIdSchema), async (req, res) => {
   const orderId = req.params.id; // this is order_display_id from client
   
   try {
@@ -1209,7 +1273,7 @@ router.get('/:id/driver-location', authenticate, requireRole(['customer', 'drive
 
     const latestTelemetry = await mongoDb
       .collection('telemetry')
-      .find({ driver_id: order.driver_id })
+      .find({ driver_id: order.driver_id, order_id: order.id })
       .sort({ timestamp: -1 })
       .limit(1)
       .toArray();

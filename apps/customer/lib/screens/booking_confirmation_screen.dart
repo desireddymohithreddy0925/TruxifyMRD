@@ -28,6 +28,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
   final _addressRepo = AddressRepository();
   bool _showSuccess = false;
   bool _isLoading = true;
+  bool _isSubmitting = false;
   String? _createdOrderId;
   late final AnimationController _controller;
   late final OrderService _orderService;
@@ -93,6 +94,8 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
     final finalDropLat = _selectedAddress?.latitude ?? widget.draft.dropLat;
     final finalDropLng = _selectedAddress?.longitude ?? widget.draft.dropLng;
 
+    if (_isSubmitting) return;
+
     if (widget.draft.pickupLat == null ||
         widget.draft.pickupLng == null ||
         finalDropLat == null ||
@@ -103,6 +106,8 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
       );
       return;
     }
+
+    setState(() => _isSubmitting = true);
 
     try {
       final orderId = await _orderService.createOrder(
@@ -120,6 +125,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
 
       _createdOrderId = orderId;
 
+      if (!mounted) return;
       setState(() => _showSuccess = true);
       await _controller.forward(from: 0);
       await Future<void>.delayed(const Duration(milliseconds: 1100));
@@ -136,6 +142,10 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Failed to create booking')),
       );
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
     }
   }
 
@@ -325,8 +335,10 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
                           orderId: _createdOrderId ?? '',
                         )
                       : PrimaryButton(
-                          label: _isLoading ? 'Loading...' : 'Pay & Confirm',
-                          onPressed: _isLoading ? null : _pay,
+                          label: _isSubmitting
+                              ? 'Submitting...'
+                              : (_isLoading ? 'Loading...' : 'Pay & Confirm'),
+                          onPressed: _isLoading || _isSubmitting ? null : _pay,
                         ),
                 ),
               ],
