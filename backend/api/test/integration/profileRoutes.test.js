@@ -327,9 +327,8 @@ describe('Profile Routes', () => {
         });
 
       expect(res.status).toBe(400);
-      expect(res.body).toEqual({
-        error: 'Invalid wallet address',
-      });
+      expect(res.body.error).toBe('Validation failed');
+      expect(res.body.details[0].field).toBe('wallet_address');
     });
 
     it('returns 409 conflict when wallet address is already taken', async () => {

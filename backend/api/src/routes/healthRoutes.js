@@ -94,7 +94,7 @@ router.get('/', healthLimiter, async (req, res) => {
   });
 });
 
-// GET /api/health/live — liveness probe; returns 200 if process is up (subject to rate limits)
+// GET /api/health/live — liveness probe; always 200 as long as the process is up
 router.get('/live', healthLimiter, (req, res) => {
   res.json({ status: 'ok', uptime: process.uptime() });
 });

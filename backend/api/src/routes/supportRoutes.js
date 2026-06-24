@@ -2,6 +2,8 @@ import express from 'express';
 import { supabase } from '../config/db.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { userLimiter } from '../middleware/rateLimiter.js';
+import { validateBody } from '../middleware/validate.js';
+import { createTicketSchema, updateTicketSchema } from '../validation/requestSchemas.js';
 
 const router = express.Router();
 
@@ -48,16 +50,10 @@ router.get('/faqs', async (req, res) => {
 // ============================================================================
 // 2. CREATE SUPPORT TICKET (AUTHENTICATED USER)
 // ============================================================================
-router.post('/tickets', authenticate, userLimiter, async (req, res) => {
-  const subject = normalizeRequiredText(req.body.subject);
-  const category = normalizeRequiredText(req.body.category);
-  const description = normalizeRequiredText(req.body.description) || subject;
-
-  if (!subject || !category) {
-    return res.status(400).json({
-      error: 'subject and category are required.',
-    });
-  }
+router.post('/tickets', authenticate, userLimiter, validateBody(createTicketSchema), async (req, res) => {
+  const subject = req.body.subject.trim();
+  const category = req.body.category.trim();
+  const description = req.body.description ? req.body.description.trim() : subject;
 
   // Map user-friendly/frontend categories to database-constrained values
   const CATEGORY_MAP = {
@@ -187,7 +183,7 @@ router.get('/tickets/:id', authenticate, userLimiter, async (req, res) => {
 // ============================================================================
 // 5. UPDATE SUPPORT TICKET (AUTHENTICATED USER - OWNER OR ADMIN)
 // ============================================================================
-router.patch('/tickets/:id', authenticate, userLimiter, async (req, res) => {
+router.patch('/tickets/:id', authenticate, userLimiter, validateBody(updateTicketSchema), async (req, res) => {
   const ticketId = req.params.id;
   const { subject, description, category, status } = req.body;
 
@@ -217,7 +213,6 @@ router.patch('/tickets/:id', authenticate, userLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Cannot update a closed ticket.' });
     }
 
-    const VALID_STATUSES = ['open', 'in_progress', 'resolved', 'closed'];
     const CATEGORY_MAP = {
       billing: 'payment', booking: 'order', payment: 'payment',
       order: 'order', technical: 'technical', general: 'general', account: 'account',
@@ -226,15 +221,11 @@ router.patch('/tickets/:id', authenticate, userLimiter, async (req, res) => {
     const updates = { updated_at: new Date().toISOString() };
 
     if (subject !== undefined) {
-      const trimmed = typeof subject === 'string' ? subject.trim() : '';
-      if (!trimmed) {
-        return res.status(400).json({ error: 'subject cannot be empty.' });
-      }
-      updates.subject = trimmed;
+      updates.subject = subject.trim();
     }
 
     if (description !== undefined) {
-      updates.description = typeof description === 'string' ? description.trim() : '';
+      updates.description = description.trim();
     }
 
     if (category !== undefined) {
@@ -245,11 +236,6 @@ router.patch('/tickets/:id', authenticate, userLimiter, async (req, res) => {
 
     if (status !== undefined) {
       const normalizedStatus = status.toLowerCase().trim();
-      if (!VALID_STATUSES.includes(normalizedStatus)) {
-        return res.status(400).json({
-          error: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`,
-        });
-      }
       const USER_ALLOWED_STATUSES = ['closed'];
       if (req.user.role !== 'admin' && normalizedStatus !== ticket.status) {
         if (!USER_ALLOWED_STATUSES.includes(normalizedStatus)) {
