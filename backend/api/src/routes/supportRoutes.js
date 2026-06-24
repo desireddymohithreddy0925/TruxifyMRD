@@ -51,9 +51,9 @@ router.get('/faqs', async (req, res) => {
 // 2. CREATE SUPPORT TICKET (AUTHENTICATED USER)
 // ============================================================================
 router.post('/tickets', authenticate, userLimiter, validateBody(createTicketSchema), async (req, res) => {
-  const subject = req.body.subject.trim();
-  const category = req.body.category.trim();
-  const description = req.body.description ? req.body.description.trim() : subject;
+  const subject = normalizeRequiredText(req.body.subject);
+  const category = normalizeRequiredText(req.body.category);
+  const description = normalizeRequiredText(req.body.description) || subject;
 
   // Map user-friendly/frontend categories to database-constrained values
   const CATEGORY_MAP = {
