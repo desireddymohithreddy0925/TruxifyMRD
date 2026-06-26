@@ -1206,11 +1206,16 @@ router.post('/:id/confirm-deposit', authenticate, userLimiter, requireRole(['cus
 
     if (result.error) return res.status(422).json({ error: result.error });
 
-    await supabase.from('orders').update({
+    const { error: updateErr } = await supabase.from('orders').update({
       escrow_status: 'funded',
       deposit_tx_hash: result.txHash,
       escrow_deposited_at: new Date().toISOString(),
     }).eq('id', orderId);
+
+    if (updateErr) {
+      logger.error('[confirm-deposit] DB update failed:', updateErr.message);
+      return res.status(500).json({ error: 'Database update failed after deposit confirmation. Please contact support.' });
+    }
 
     res.json({ message: 'Escrow deposit confirmed', txHash: result.txHash });
   } catch (err) {
