@@ -145,7 +145,7 @@ function generateOrderDisplayId() {
   const prefix = '#FF';
   const now = new Date();
   const dateStr = now.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
-  const random = Math.floor(1000 + Math.random() * 9000); // 4 random digits
+  const random = Math.floor(100000 + Math.random() * 900000); // 6 random digits
   return `${prefix}${dateStr}${random}`;
 }
 
@@ -850,8 +850,6 @@ router.put('/:id/milestones', authenticate, userLimiter, requireRole(['driver'])
 router.post('/:id/verify-delivery', authenticate, userLimiter, requireRole(['driver']), verifyDeliveryLimiter, validateParams(paramIdSchema), validateBody(verifyDeliverySchema), async (req, res) => {
   const orderId = req.params.id;
   const { otp } = req.body;
-
-  if (!otp) return res.status(400).json({ error: 'OTP is required for verification.' });
 
   // Check for active lockout from previous failed attempts
   if (await checkOtpLockout(orderId)) {

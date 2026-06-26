@@ -4,6 +4,8 @@ import logger from '../middleware/logger.js';
 const DEFAULT_OSRM_BASE_URL = 'https://router.project-osrm.org';
 const DEFAULT_TIMEOUT_MS = 1500;
 const CACHE_TTL_SECONDS = 86400;
+const MAX_RETRIES = 1;
+const RETRY_DELAYS_MS = [500, 1000]; // exponential backoff
 
 function parsePositiveNumber(value, fallback) {
   const parsed = Number(value);
@@ -46,41 +48,59 @@ export async function getRouteEstimate({ pickupLat, pickupLng, dropLat, dropLng 
   }
 
   const timeoutMs = parsePositiveNumber(process.env.OSRM_TIMEOUT_MS, DEFAULT_TIMEOUT_MS);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-  try {
-    const response = await fetch(buildRouteUrl({ pickupLat, pickupLng, dropLat, dropLng }), {
-      signal: controller.signal,
-    });
-    if (!response.ok) return null;
+  // Retry loop for transient network/fetch errors
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-    const payload = await response.json();
-    const route = Array.isArray(payload?.routes) ? payload.routes[0] : null;
-    if (!route || !Number.isFinite(route.distance) || route.distance < 0) {
-      return null;
-    }
+    try {
+      const response = await fetch(buildRouteUrl({ pickupLat, pickupLng, dropLat, dropLng }), {
+        signal: controller.signal,
+      });
 
-    const result = {
-      distanceKm: route.distance / 1000,
-      durationSeconds: Number.isFinite(route.duration) ? route.duration : null,
-    };
+      if (!response.ok) {
+        // Non-ok HTTP responses are data errors, not transient — do not retry
+        clearTimeout(timeout);
+        return null;
+      }
 
-    if (redisClient){
-      try{
-        await redisClient.set(cacheKey, JSON.stringify(result), 'EX', CACHE_TTL_SECONDS);
-      } catch(err){
-        logger.error('[osrm] Redis set error:', err.message);
+      const payload = await response.json();
+      const route = Array.isArray(payload?.routes) ? payload.routes[0] : null;
+      if (!route || !Number.isFinite(route.distance) || route.distance < 0) {
+        clearTimeout(timeout);
+        return null;
+      }
+
+      const result = {
+        distanceKm: route.distance / 1000,
+        durationSeconds: Number.isFinite(route.duration) ? route.duration : null,
+      };
+
+      if (redisClient) {
+        try {
+          await redisClient.set(cacheKey, JSON.stringify(result), 'EX', CACHE_TTL_SECONDS);
+        } catch (err) {
+          logger.error('[osrm] Redis set error:', err.message);
+        }
+      }
+
+      clearTimeout(timeout);
+      return result;
+
+    } catch (err) {
+      clearTimeout(timeout);
+      if (attempt < MAX_RETRIES) {
+        logger.warn(`[osrm] Fetch error (attempt ${attempt + 1}/${MAX_RETRIES + 1}): ${err.message}. Retrying in ${RETRY_DELAYS_MS[attempt]}ms.`);
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS_MS[attempt]));
+      } else {
+        logger.error('[osrm] Fetch error after all retries:', err.message);
+        return null;
       }
     }
-    return result;
-    
-  } catch (err) {
-    logger.error('[osrm] Fetch error:', err.message);
-    return null;
-  } finally {
-    clearTimeout(timeout);
   }
+
+  return null;
 }
 
 export const __testing = { buildRouteUrl, buildCacheKey, DEFAULT_OSRM_BASE_URL, DEFAULT_TIMEOUT_MS };

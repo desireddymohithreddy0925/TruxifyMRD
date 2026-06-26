@@ -1,8 +1,7 @@
 import express from 'express';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requireRole } from '../middleware/auth.js';
 import { userLimiter } from '../middleware/rateLimiter.js';
 import { validateBody } from '../middleware/validate.js';
-import { updateProfileSchema } from '../validation/requestSchemas.js';
 import {
   getProfile,
   getCustomerStats,
@@ -11,7 +10,6 @@ import {
 import { supabase } from '../config/db.js';
 import { ProfileModel } from '../models/ProfileModel.js';
 import { invalidateCachedProfile, invalidateCachedSupabaseProfile } from '../lib/profileCache.js';
-import { validateBody } from '../middleware/validate.js';
 import { updateProfileSchema, updateWalletSchema } from '../validation/requestSchemas.js';
 
 const router = express.Router();
@@ -225,6 +223,28 @@ router.put('/fcm-token', authenticate, userLimiter, async (req, res) => {
     return res.json({ success: true, message: 'FCM token updated successfully.' });
   } catch (err) {
     return res.status(500).json({ error: 'Failed to update FCM token.', details: err.message });
+  }
+});
+
+// ADMIN CACHE INVALIDATION
+// Invalidates the profile cache for a specific user, forcing the next
+// authenticated request to refetch from Supabase. Use this after admin
+// operations that change role, status, or other cached profile fields.
+router.delete('/admin/cache/:userId', authenticate, requireRole(['admin']), async (req, res) => {
+  try {
+    const targetUserId = req.params.userId;
+    if (!targetUserId) {
+      return res.status(400).json({ error: 'userId path parameter is required.' });
+    }
+
+    await Promise.all([
+      invalidateCachedProfile(targetUserId),
+      invalidateCachedSupabaseProfile(targetUserId),
+    ]);
+
+    return res.json({ success: true, message: `Cache invalidated for user ${targetUserId}.` });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to invalidate profile cache.', details: err.message });
   }
 });
 

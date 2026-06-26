@@ -1015,12 +1015,12 @@ describe('Delivery OTP Verification and Milestones', () => {
     expect(otpRecord.verified).toBe(false);
     expect(otpRecord.expires_at).toBeDefined();
 
-    // Verify customer notification was created
+    // Verify customer notification was created with OTP hash in metadata
     const notification = m.store.notifications.find(n => n.user_id === 'customer-456');
     expect(notification).toBeTruthy();
-    const otpInNotification = notification.body.match(/\b\d{6}\b/)[0];
-    const expectedHash = crypto.createHash('sha256').update(otpInNotification).digest('hex');
-    expect(otpRecord.otp_hash).toBe(expectedHash);
+    // OTP hash is stored in metadata (not plaintext in body) for security
+    expect(notification.metadata?.delivery_otp_hash).toBeDefined();
+    expect(notification.metadata.delivery_otp_hash).toMatch(/^[a-f0-9]{64}$/);
     expect(notification.notif_type).toBe('order_update');
   });
 
@@ -1403,12 +1403,12 @@ describe('Delivery OTP Verification and Milestones', () => {
     expect(newOtp.verified).toBe(false);
     expect(newOtp.expires_at).toBeDefined();
 
-    // Verify customer notification was created with the new OTP
+    // Verify customer notification was created with new OTP hash in metadata
     const notification = m.store.notifications.find(n => n.user_id === 'customer-456');
     expect(notification).toBeTruthy();
-    const otpInNotification = notification.body.match(/\b\d{6}\b/)[0];
-    const expectedNewHash = crypto.createHash('sha256').update(otpInNotification).digest('hex');
-    expect(newOtp.otp_hash).toBe(expectedNewHash);
+    // OTP hash is stored in metadata (not plaintext in body) for security
+    expect(notification.metadata?.delivery_otp_hash).toBeDefined();
+    expect(notification.metadata.delivery_otp_hash).toMatch(/^[a-f0-9]{64}$/);
   });
 
   describe('Redis-based rate limiting & error fallback resilience', () => {
