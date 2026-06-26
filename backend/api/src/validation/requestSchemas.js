@@ -52,7 +52,7 @@ export const createOrderSchema = z.object({
   special_requirements: z.string().max(500).optional().nullable(),
   payment_method_id: z.string().optional(),
   upi_id: z.string().regex(upiRegex, "Invalid UPI ID format").optional().or(z.literal('')).nullable()
-}).strict();
+}).passthrough();
 
 export const paramIdSchema = z.object({
   id: uuidSchema.or(z.string().min(1, "ID is required"))
@@ -170,11 +170,4 @@ export const updateTicketSchema = z.object({
   status: z.enum(['open', 'in_progress', 'resolved', 'closed'], {
     invalid_type_error: "Status must be one of: open, in_progress, resolved, closed",
   }).optional(),
-}).strict();
-
-export const updateProfileSchema = z.object({
-  full_name: z.string().max(100, 'Name must be 100 characters or fewer').optional(),
-  language: z.string().max(10, 'Language code must be 10 characters or fewer').optional(),
-  dark_mode: z.boolean().optional(),
-  is_online: z.boolean().optional(),
 }).strict();
