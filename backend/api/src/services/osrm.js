@@ -3,6 +3,8 @@ import logger from '../middleware/logger.js';
 
 const DEFAULT_OSRM_BASE_URL = 'https://router.project-osrm.org';
 const DEFAULT_TIMEOUT_MS = 1500;
+const DEFAULT_MAX_RETRIES = 3;
+const DEFAULT_RETRY_BASE_DELAY_MS = 500;
 const CACHE_TTL_SECONDS = 86400;
 const ROUTE_CACHE_TTL_SECONDS = 30;
 const MAX_RETRIES = 1;
@@ -49,9 +51,10 @@ export async function getRouteEstimate({ pickupLat, pickupLng, dropLat, dropLng 
   }
 
   const timeoutMs = parsePositiveNumber(process.env.OSRM_TIMEOUT_MS, DEFAULT_TIMEOUT_MS);
+  const maxRetries = parsePositiveNumber(process.env.OSRM_MAX_RETRIES, DEFAULT_MAX_RETRIES);
+  const baseDelayMs = parsePositiveNumber(process.env.OSRM_RETRY_BASE_DELAY_MS, DEFAULT_RETRY_BASE_DELAY_MS);
 
-  // Retry loop for transient network/fetch errors
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -61,8 +64,12 @@ export async function getRouteEstimate({ pickupLat, pickupLng, dropLat, dropLng 
       });
 
       if (!response.ok) {
-        // Non-ok HTTP responses are data errors, not transient — do not retry
         clearTimeout(timeout);
+        if (response.status >= 500 && attempt < maxRetries - 1) {
+          logger.warn('[osrm] Server error %d (attempt %d/%d). Retrying...', response.status, attempt + 1, maxRetries);
+          await new Promise(r => setTimeout(r, baseDelayMs * Math.pow(2, attempt)));
+          continue;
+        }
         return null;
       }
 
@@ -91,11 +98,12 @@ export async function getRouteEstimate({ pickupLat, pickupLng, dropLat, dropLng 
 
     } catch (err) {
       clearTimeout(timeout);
-      if (attempt < MAX_RETRIES) {
-        logger.warn(`[osrm] Fetch error (attempt ${attempt + 1}/${MAX_RETRIES + 1}): ${err.message}. Retrying in ${RETRY_DELAYS_MS[attempt]}ms.`);
-        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS_MS[attempt]));
+      if (attempt < maxRetries - 1) {
+        const delayMs = baseDelayMs * Math.pow(2, attempt);
+        logger.warn('[osrm] Fetch error (attempt %d/%d): %s. Retrying in %d ms...', attempt + 1, maxRetries, err.message, delayMs);
+        await new Promise(r => setTimeout(r, delayMs));
       } else {
-        logger.error('[osrm] Fetch error after all retries:', err.message);
+        logger.error('[osrm] Fetch error after all %d retries: %s', maxRetries, err.message);
         return null;
       }
     }
