@@ -62,6 +62,17 @@ describe('getProfile', () => {
     };
     await expect(getProfile('user-123')).rejects.toThrow('DB error');
   });
+
+  it('returns null when no matching profile is found', async () => {
+    supabaseRef.current = {
+      from: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+    };
+    const result = await getProfile('nonexistent-user');
+    expect(result).toBeNull();
+  });
 });
 
 describe('getCustomerStats', () => {
@@ -95,6 +106,17 @@ describe('getCustomerStats', () => {
     };
     await expect(getCustomerStats('user-123')).rejects.toThrow('Table not found');
   });
+
+  it('returns null when no customer stats are found', async () => {
+    supabaseRef.current = {
+      from: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+    };
+    const result = await getCustomerStats('new-user-without-stats');
+    expect(result).toBeNull();
+  });
 });
 
 describe('getDriverDetails', () => {
@@ -127,5 +149,16 @@ describe('getDriverDetails', () => {
       maybeSingle: vi.fn().mockResolvedValue({ data: null, error: { message: 'Query failed' } }),
     };
     await expect(getDriverDetails('driver-123')).rejects.toThrow('Query failed');
+  });
+
+  it('returns null when no driver details are found', async () => {
+    supabaseRef.current = {
+      from: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+    };
+    const result = await getDriverDetails('new-driver-without-details');
+    expect(result).toBeNull();
   });
 });
