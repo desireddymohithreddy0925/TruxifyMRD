@@ -205,15 +205,8 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
                   if (widget.truck.platformFee != null)
                     _PriceLineRow(label: 'Platform fee', amount: widget.truck.platformFee!),
                   _PriceLineRow(label: 'Total', amount: widget.truck.price, isTotal: true),
-                ] else ...[
-                  ...mockBookingPriceLines.map(
-                    (line) => _PriceLineRow(
-                      label: line.label,
-                      amount: line.amount,
-                      isTotal: line.isTotal,
-                    ),
-                  ),
-                ],
+                ] else
+                  _PriceLineRow(label: 'Total', amount: widget.truck.price, isTotal: true),
                 if (widget.truck.isAiEstimate) ...[
                   const SizedBox(height: 4),
                   const Divider(),

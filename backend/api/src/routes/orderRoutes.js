@@ -768,6 +768,11 @@ router.post('/:id/bids/:bidId/accept', authenticate, userLimiter, requireRole(['
     });
 
     if (rpcErr) {
+      // Rollback the pre-update so the order is not left in an impossible state
+      await supabase
+        .from('orders')
+        .update({ escrow_status: 'pending', escrow_booking_id: null })
+        .eq('id', orderId);
       return res.status(500).json({
         error: 'Failed to accept bid atomically.',
         details: rpcErr.message,
@@ -865,11 +870,19 @@ router.put('/:id/milestones', authenticate, userLimiter, requireRole(['driver'])
       }
     }
 
-    const { data: updatedOrder, error: updateErr } = await supabase.from('orders').update(updates).eq('id', orderId).select('*').single();
-    if (updateErr) return res.status(500).json({ error: 'Failed to update order.', details: updateErr.message });
-
     const { error: timelineErr } = await supabase.from('order_timeline').update({ completed: true, milestone_time: new Date().toISOString() }).eq('order_display_id', order.order_display_id).eq('milestone', milestone);
     if (timelineErr) return res.status(500).json({ error: 'Failed to update order timeline.', details: timelineErr.message });
+
+    const { data: updatedOrder, error: updateErr } = await supabase.from('orders').update(updates).eq('id', orderId).select('*').single();
+    if (updateErr) {
+      // Roll back the timeline mark since the order update failed
+      await supabase
+        .from('order_timeline')
+        .update({ completed: false, milestone_time: null })
+        .eq('order_display_id', order.order_display_id)
+        .eq('milestone', milestone);
+      return res.status(500).json({ error: 'Failed to update order.', details: updateErr.message });
+    }
 
     if (generatedOtp) {
       const notifResult = await sendDeliveryOtpNotification(order.customer_id, order.order_display_id, generatedOtp);
@@ -1528,7 +1541,7 @@ router.get('/:id/driver-location', authenticate, userLimiter, requireRole(['cust
 // 20. GET LIVE ROUTE GEOMETRY (CUSTOMER OR DRIVER)
 // ============================================================================
 
-router.get('/:id/route', authenticate, requireRole(['customer', 'driver']), validateParams(paramIdSchema), async (req, res) => {
+router.get('/:id/route', authenticate, userLimiter, requireRole(['customer', 'driver']), validateParams(paramIdSchema), async (req, res) => {
   const orderId = req.params.id; // this is order_display_id from client
 
   try {

@@ -1,3 +1,5 @@
+// Default URLs: localhost works for host-to-container, ML_ENGINE_URL env var
+// overrides for Docker Compose container-to-container communication.
 const DEFAULT_ML_ENGINE_URL = 'http://localhost:8001';
 const DEFAULT_ML_SERVICE_URL = 'http://localhost:8001';
 
