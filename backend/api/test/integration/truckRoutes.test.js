@@ -163,5 +163,21 @@ describe('Truck Routes', () => {
       expect(res.body.trucks.map(t => t.id)).toContain('truck-2');
       expect(res.body.trucks.map(t => t.id)).not.toContain('truck-other');
     });
+
+    it('supports min_capacity and max_capacity filtering', async () => {
+      m.store.trucks.push(
+        { id: 'truck-1', name: 'Truck A', number_plate: 'MH12AB0001', max_capacity_tons: 5, owner_id: 'driver-uuid-456', created_at: '2026-06-01T00:00:00Z' },
+        { id: 'truck-2', name: 'Truck B', number_plate: 'MH12AB0002', max_capacity_tons: 10, owner_id: 'driver-uuid-456', created_at: '2026-06-02T00:00:00Z' },
+        { id: 'truck-3', name: 'Truck C', number_plate: 'MH12AB0003', max_capacity_tons: 15, owner_id: 'driver-uuid-456', created_at: '2026-06-03T00:00:00Z' }
+      );
+
+      const res = await request(buildApp())
+        .get('/api/trucks?min_capacity=8&max_capacity=12')
+        .set(DRIVER_HEADERS);
+
+      expect(res.status).toBe(200);
+      expect(res.body.trucks).toHaveLength(1);
+      expect(res.body.trucks[0].id).toBe('truck-2');
+    });
   });
 });

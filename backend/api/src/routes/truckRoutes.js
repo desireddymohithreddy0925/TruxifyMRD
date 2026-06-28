@@ -68,12 +68,22 @@ router.post('/', authenticate, requireRole(['driver']), userLimiter, validateBod
  * Returns all trucks owned by the authenticated driver.
  */
 router.get('/', authenticate, requireRole(['driver']), userLimiter, async (req, res) => {
+  const { min_capacity, max_capacity } = req.query;
+
   try {
-    const { data: trucks, error } = await supabase
+    let query = supabase
       .from('trucks')
       .select('id, name, number_plate, max_capacity_tons, created_at')
-      .eq('owner_id', req.user.id)
-      .order('created_at', { ascending: false });
+      .eq('owner_id', req.user.id);
+
+    if (min_capacity) {
+      query = query.gte('max_capacity_tons', Number(min_capacity));
+    }
+    if (max_capacity) {
+      query = query.lte('max_capacity_tons', Number(max_capacity));
+    }
+
+    const { data: trucks, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
       return res.status(500).json({ error: 'Failed to fetch trucks.', details: error.message });
