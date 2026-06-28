@@ -56,8 +56,6 @@ const defaultMockSupabase = {
   }),
 };
 
-const supabaseRef = { current: defaultMockSupabase };
-
 vi.mock('../../src/config/db.js', () => ({
   get supabase() {
     return supabaseRef.current;
@@ -68,7 +66,7 @@ import { getProfile, getCustomerStats, getDriverDetails } from '../../src/servic
 
 describe('getProfile', () => {
   beforeEach(() => {
-    supabaseRef.current = defaultMockSupabase;
+    supabaseRef.current = { ...defaultMockSupabase };
   });
 
   it('throws when supabase is not configured', async () => {
@@ -104,7 +102,7 @@ describe('getProfile', () => {
 
 describe('getCustomerStats', () => {
   beforeEach(() => {
-    supabaseRef.current = defaultMockSupabase;
+    supabaseRef.current = { ...defaultMockSupabase };
   });
 
   it('throws when supabase is not configured', async () => {
@@ -140,7 +138,7 @@ describe('getCustomerStats', () => {
 
 describe('getDriverDetails', () => {
   beforeEach(() => {
-    supabaseRef.current = defaultMockSupabase;
+    supabaseRef.current = { ...defaultMockSupabase };
   });
 
   it('throws when supabase is not configured', async () => {
