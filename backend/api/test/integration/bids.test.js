@@ -499,7 +499,8 @@ describe('Bid Routes', () => {
       );
 
       let order = m.store.orders.find(o => o.id === 'order-comp-fail');
-      expect(order.escrow_status).toBe('funding');
+      expect(order.escrow_status).toBe('pending');
+      expect(order.escrow_booking_id).toBe(null);
       expect(order.status).toBeUndefined();
     } finally {
       m.supabase.rpc = originalRpc;

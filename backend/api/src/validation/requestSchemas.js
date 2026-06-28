@@ -60,7 +60,7 @@ export const createOrderSchema = z.object({
 }).strict();
 
 export const paramIdSchema = z.object({
-  id: z.string().min(1, "ID is required")
+  id: uuidSchema.or(z.string().min(1, "ID is required"))
 });
 
 // Strict UUID-only param schema for routes whose :id maps directly to orders.id (a uuid).
@@ -188,6 +188,7 @@ export const driverStatementSchema = z.object({
   end_date: z.string().refine(value => !Number.isNaN(Date.parse(value)), {
     message: 'Must be a valid date string',
   }).optional(),
+  sort_by: z.enum(['pickup_date', 'net_earnings', 'base_freight']).optional(),
 }).strict();
 
 // Indian vehicle registration plate: 2 letters, 2 digits, up to 3 letters, up to 4 digits

@@ -24,6 +24,7 @@ import {
 } from '../validation/requestSchemas.js';
 import { awardReputationPoints } from '../services/reputation.js';
 import { predictDemand, predictPrice } from '../services/ml.js';
+import { changeDropSchema, cancelOrderSchema } from '../validation/requestSchemas.js';
 import {
   buildDepositTx,
   recordDepositTx,

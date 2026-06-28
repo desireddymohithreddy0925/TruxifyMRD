@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import helmet from 'helmet'; // 🔒 ADDED HELMET IMPORT FOR ISSUE #361
+import helmet from 'helmet'; // 🔒 ADDED HELMET IMPORT FOR ISSUES #361 & #944
 import http from 'http';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -63,7 +63,7 @@ app.set('trust proxy', 1);
 
 // ============================================================================
 // 🔒 ADVANCED SECURITY HEADERS (HELMET CONFIGURATION)
-// Resolves missing security headers from Issue #361
+// Resolves missing security headers from Issues #361 and #944
 // ============================================================================
 app.use(helmet({
   // Content Security Policy (CSP) - Prevents XSS and data injection

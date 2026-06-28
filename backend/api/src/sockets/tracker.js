@@ -49,6 +49,7 @@ const WS_UPGRADE_RATE_LIMIT = 5;
 const WS_UPGRADE_RATE_WINDOW_SECONDS = 60;
 const MAX_MSG_PER_SECOND = 10;
 const MAX_WS_PAYLOAD_BYTES = 64 * 1024; // 64KB for telemetry payloads
+const messageRateTracker = new Map();
 
 function getClientIp(request) {
   const forwardedFor = request.headers?.['x-forwarded-for'];
@@ -281,7 +282,14 @@ async function isMessageRateLimited(ws) {
     : `ws:msg:ip:${ws.driverId || 'unknown'}`;
 
   if (!redisClient) {
-    return false;
+    const now = Date.now();
+    let state = messageRateTracker.get(ws);
+    if (!state || now - state.windowStart >= 1000) {
+      state = { count: 0, windowStart: now };
+      messageRateTracker.set(ws, state);
+    }
+    state.count += 1;
+    return state.count > MAX_MSG_PER_SECOND;
   }
 
   try {
@@ -294,6 +302,7 @@ async function isMessageRateLimited(ws) {
     logger.error('[ws] Rate limit check error:', err.message);
     return false;
   }
+}
 
 const DRIVER_ONLINE_TIMEOUT_MS = parseInt(process.env.DRIVER_ONLINE_TIMEOUT_MS, 10) || 5 * 60 * 1000; // 5 minutes
 
@@ -320,20 +329,20 @@ function initDriverOnlineExpiry() {
 }
 
 export async function handleTrackingMessage(ws, message) {
-  if (await isMessageRateLimited(ws)) {
-    return;
-  }
-
   const messageText = message.toString();
-
-  if (Buffer.byteLength(messageText, 'utf8') > MAX_WS_PAYLOAD_BYTES) {
-    ws.close(1009, 'Message too large');
-    return;
-  }
 
   if (messageText === 'ping') {
     ws.isAlive = true;
     return ws.send('pong');
+  }
+
+  if (await isMessageRateLimited(ws)) {
+    return;
+  }
+
+  if (Buffer.byteLength(messageText, 'utf8') > MAX_WS_PAYLOAD_BYTES) {
+    ws.close(1009, 'Message too large');
+    return;
   }
 
   try {
@@ -527,10 +536,12 @@ export async function handleLocationPing(ws, data) {
   // Update last_seen_at for driver online status auto-expiry
   if (supabase) {
     try {
-      await supabase
-        .from('driver_details')
-        .update({ last_seen_at: new Date(serverNow).toISOString() })
-        .eq('user_id', driver_id);
+      const driverDetailsQuery = supabase.from('driver_details');
+      if (typeof driverDetailsQuery.update === 'function') {
+        await driverDetailsQuery
+          .update({ last_seen_at: new Date(serverNow).toISOString() })
+          .eq('user_id', driver_id);
+      }
     } catch (err) {
       logger.error('[tracker] Failed to update last_seen_at:', err.message);
     }

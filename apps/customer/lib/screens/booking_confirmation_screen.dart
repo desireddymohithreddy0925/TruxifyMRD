@@ -342,8 +342,6 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
   }
 }
 
-const widget.truck.truckNumber ?? widget.truck.truck = 'TN 45 AB 1234';
-
 class _SummaryRow extends StatelessWidget {
   const _SummaryRow({required this.label, required this.value});
 

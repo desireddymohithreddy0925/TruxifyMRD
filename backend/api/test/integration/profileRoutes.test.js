@@ -455,5 +455,40 @@ describe('Profile Routes', () => {
       expect(res.body.trips).toHaveLength(1);
       expect(res.body.trips[0].id).toBe('order-2');
     });
+
+    it('sorts statement trips by net earnings when sort_by=net_earnings is passed', async () => {
+      m.store.orders.push(
+        {
+          id: 'order-low-earn',
+          driver_id: 'driver-uuid-456',
+          status: 'delivered',
+          pickup_address: 'A',
+          drop_address: 'B',
+          pickup_date: '2026-06-01',
+          base_freight: 10000,
+          platform_fee: 1000,
+          toll_estimate: 0
+        },
+        {
+          id: 'order-high-earn',
+          driver_id: 'driver-uuid-456',
+          status: 'delivered',
+          pickup_address: 'C',
+          drop_address: 'D',
+          pickup_date: '2026-06-05',
+          base_freight: 30000,
+          platform_fee: 1000,
+          toll_estimate: 0
+        }
+      );
+
+      const res = await request(buildApp())
+        .get('/api/profile/driver/statement?sort_by=net_earnings')
+        .set(DRIVER_HEADERS);
+
+      expect(res.status).toBe(200);
+      expect(res.body.trips).toHaveLength(2);
+      expect(res.body.trips[0].id).toBe('order-high-earn');
+    });
   });
 });

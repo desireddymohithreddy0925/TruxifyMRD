@@ -64,11 +64,15 @@ class _TruckResultsScreenState extends State<TruckResultsScreen> {
         isStackable: draft.stacked,
       );
 
+      if (!mounted) return;
+
       setState(() {
         _trucks = results.map((j) => TruckResultData.fromJson(j)).toList();
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
+
       setState(() {
         _error = e.toString().replaceFirst('StateError: ', '');
         _isLoading = false;

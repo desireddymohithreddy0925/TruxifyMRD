@@ -72,10 +72,19 @@ const CATEGORY_LABELS = {
   account: 'Account Management',
 };
 
+const CATEGORY_DESCRIPTIONS = {
+  payment: 'Issues related to payments, invoices, billing, and refunds.',
+  order: 'Issues related to load bookings, orders, and shipment tracking.',
+  technical: 'App crashes, bugs, and technical difficulties.',
+  general: 'General questions and inquiries.',
+  account: 'Login problems, account settings, and profile access.',
+};
+
 router.get('/categories', (_req, res) => {
   res.json({
     categories: VALID_CATEGORIES,
     labels: CATEGORY_LABELS,
+    descriptions: CATEGORY_DESCRIPTIONS,
   });
 });
 
@@ -399,6 +408,8 @@ router.post('/tickets/:id/comments', authenticate, userLimiter, validateBody(cre
 // ============================================================================
 router.get('/tickets/:id/comments', authenticate, userLimiter, async (req, res) => {
   const ticketId = req.params.id;
+  const { sort } = req.query;
+  const isAscending = sort !== 'desc';
 
   try {
     const { data: ticket, error: fetchError } = await supabase
@@ -426,7 +437,7 @@ router.get('/tickets/:id/comments', authenticate, userLimiter, async (req, res) 
       .from('support_ticket_comments')
       .select('id, ticket_id, user_id, user_name, message, created_at')
       .eq('ticket_id', ticketId)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: isAscending });
 
     if (commentsError) {
       return res.status(500).json({

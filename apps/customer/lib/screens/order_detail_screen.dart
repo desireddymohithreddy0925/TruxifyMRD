@@ -87,6 +87,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     return '$hour:$minute';
   }
 
+  String? _formatRupeesFromPaise(dynamic value) {
+    if (value is! num) return null;
+    return 'Rs ${(value / 100).toStringAsFixed(0)}';
+  }
+
   Future<void> _loadOrderAndTimeline() async {
     try {
       final orderMap = await _orderService.fetchOrderById(_currentOrder.orderId);
@@ -132,12 +137,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             truckNumber: truckNumber,
             timeline: parsedTimeline,
             blockchainTxHash: orderMap['blockchain_tx_hash']?.toString(),
-            baseFare: orderMap['base_fare'] != null ? '₹${(orderMap['base_fare'] as num / 100).toStringAsFixed(0)}' : null,
-            distanceCharge: orderMap['distance_charge'] != null ? '₹${(orderMap['distance_charge'] as num / 100).toStringAsFixed(0)}' : null,
-            tollCharge: orderMap['toll_charge'] != null ? '₹${(orderMap['toll_charge'] as num / 100).toStringAsFixed(0)}' : null,
-            platformFee: orderMap['platform_fee'] != null ? '₹${(orderMap['platform_fee'] as num / 100).toStringAsFixed(0)}' : null,
+            baseFare: _formatRupeesFromPaise(orderMap['base_fare']),
+            distanceCharge: _formatRupeesFromPaise(orderMap['distance_charge']),
+            tollCharge: _formatRupeesFromPaise(orderMap['toll_charge']),
+            platformFee: _formatRupeesFromPaise(orderMap['platform_fee']),
           );
-
           // Trigger rating flow if status becomes completed and rating dialog hasn't been shown yet
           final orderStatus = orderMap['status']?.toString() ?? '';
           if (orderStatus == 'completed' || orderStatus == 'delivered' || orderStatus == 'payment_released') {

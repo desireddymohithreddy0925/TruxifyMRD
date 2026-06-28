@@ -55,7 +55,7 @@ router.post('/otp/verify', verifyOtpLimiter, validateBody(loginOtpSchema), async
   const { phone, otp } = req.body;
   const valid = await verifyOtp(phone, otp);
   if (!valid) {
-    return res.status(400).json({ error: 'Invalid or expired OTP. Please try again.' });
+    return res.status(400).json({ error: 'Invalid OTP. Please try again.' });
   }
   return res.json({ message: 'OTP verified successfully.', verified: true });
 });

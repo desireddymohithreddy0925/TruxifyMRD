@@ -38,6 +38,10 @@ function getBaseUrl() {
   return process.env.ML_ENGINE_URL || process.env.ML_SERVICE_URL || DEFAULT_ML_ENGINE_URL;
 }
 
+function getPriceBaseUrl() {
+  return process.env.ML_SERVICE_URL || process.env.ML_ENGINE_URL || DEFAULT_ML_SERVICE_URL;
+}
+
 /**
  * Predicts ride/truck demand by calling the FastAPI ML engine service.
  *
@@ -80,7 +84,7 @@ export async function predictDemand(features) {
  * @returns {Promise<{estimated_price: number, min_price: number, max_price: number, currency: string}>} price prediction
  */
 export async function predictPrice({ distanceKm, cargoWeightKg, truckType, routeOrigin, routeDestination, hourOfDay, dayOfWeek, month, fuelPrice, cargoType } = {}) {
-  const url = `${getBaseUrl()}/predict`;
+  const url = `${getPriceBaseUrl()}/predict`;
 
   const response = await fetch(url, {
     method: 'POST',

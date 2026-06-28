@@ -437,4 +437,32 @@ describe('GET /api/trips/:id/events', () => {
     expect(res.body.events).toHaveLength(1);
     expect(res.body.events[0].event_type).toBe('gpsUpdate');
   });
+
+  it('supports custom sorting order with sort=desc', async () => {
+    m.store.trip_events.push(
+      { event_id: 'ev-1', user_id: 'driver-1', trip_id: 'trip-sort', event_type: 'gpsUpdate', event_timestamp: '2026-06-01T10:00:00Z', latitude: 19.0, longitude: 72.8, metadata: {}, created_at: '2026-06-01T10:00:00Z' },
+      { event_id: 'ev-2', user_id: 'driver-1', trip_id: 'trip-sort', event_type: 'milestone', event_timestamp: '2026-06-01T11:00:00Z', latitude: null, longitude: null, metadata: {}, created_at: '2026-06-01T11:00:00Z' },
+    );
+
+    const res = await request(buildEventsApp())
+      .get('/api/trips/trip-sort/events?sort=desc')
+      .set(DRIVER_HEADERS);
+
+    expect(res.status).toBe(200);
+    expect(res.body.events).toHaveLength(2);
+    expect(res.body.events[0].event_id).toBe('ev-2');
+  it('filters events within a geographic bounding box when coordinates are provided', async () => {
+    m.store.trip_events.push(
+      { event_id: 'ev-in', user_id: 'driver-1', trip_id: 'trip-bbox', event_type: 'gpsUpdate', event_timestamp: '2026-06-01T10:00:00Z', latitude: 19.5, longitude: 72.8, metadata: {}, created_at: '2026-06-01T10:00:00Z' },
+      { event_id: 'ev-out', user_id: 'driver-1', trip_id: 'trip-bbox', event_type: 'gpsUpdate', event_timestamp: '2026-06-01T11:00:00Z', latitude: 25.0, longitude: 80.0, metadata: {}, created_at: '2026-06-01T11:00:00Z' }
+    );
+
+    const res = await request(buildEventsApp())
+      .get('/api/trips/trip-bbox/events?min_lat=19.0&max_lat=20.0&min_lng=72.0&max_lng=73.0')
+      .set(DRIVER_HEADERS);
+
+    expect(res.status).toBe(200);
+    expect(res.body.events).toHaveLength(1);
+    expect(res.body.events[0].event_id).toBe('ev-in');
+  });
 });
