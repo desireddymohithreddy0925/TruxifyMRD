@@ -14,24 +14,24 @@ dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
 //    service role key for admin operations only (bypasses RLS)
 // ============================================================================
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!supabaseKey) {
-  logger.error('SUPABASE_SERVICE_ROLE_KEY is not set. Elevated operations will fail.');
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+if (!supabaseAnonKey) {
+  logger.error('SUPABASE_ANON_KEY is not set. Public operations will fail.');
 }
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export let supabase = null;
 export let supabaseAdmin = null;
 
-if (supabaseUrl && supabaseKey) {
+if (supabaseUrl && supabaseAnonKey) {
   try {
-    supabase = createClient(supabaseUrl, supabaseKey, {
+    supabase = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
       }
     });
-    logger.info('Supabase client initialized successfully (service role key).');
+    logger.info('Supabase client initialized successfully (anon key with RLS).');
   } catch (error) {
     logger.error({ err: error }, 'Failed to initialize Supabase client');
   }
@@ -206,7 +206,7 @@ export async function closeDbConnections() {
  */
 export function validateConfig() {
   const required = ['SUPABASE_URL', 'SUPABASE_ANON_KEY'];
-  const recommended = ['REDIS_URL', 'MONGODB_URI', 'FIREBASE_SERVICE_ACCOUNT_JSON'];
+  const recommended = ['SUPABASE_SERVICE_ROLE_KEY', 'REDIS_URL', 'MONGODB_URI', 'FIREBASE_SERVICE_ACCOUNT_JSON'];
   const missing = required.filter((key) => !process.env[key]);
   const missingRecommended = recommended.filter((key) => !process.env[key]);
 
