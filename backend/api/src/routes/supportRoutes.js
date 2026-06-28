@@ -23,38 +23,9 @@ const CATEGORY_MAP = {
   account: 'account',
 };
 
-// The unique set of valid DB-level category values.
-const VALID_CATEGORIES = [...new Set(Object.values(CATEGORY_MAP))];
-
-// Human-readable labels for each DB-level category value.
-const CATEGORY_LABELS = {
-  payment: 'Payment & Billing',
-  order: 'Order & Booking',
-  technical: 'Technical Issue',
-  general: 'General Enquiry',
-  account: 'Account Management',
-};
-
 function normalizeRequiredText(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
-
-// ============================================================================
-// 0. GET SUPPORT TICKET CATEGORIES (PUBLIC - no auth required)
-// ============================================================================
-/**
- * GET /api/support/categories
- *
- * Returns the list of valid accepted support ticket category values.
- * Public so onboarding screens / mobile apps can populate dropdowns
- * without needing a user session.
- */
-router.get('/categories', (_req, res) => {
-  res.json({
-    categories: VALID_CATEGORIES,
-    labels: CATEGORY_LABELS,
-  });
-});
 
 // ============================================================================
 // 1. LIST ACTIVE FAQS (PUBLIC)
@@ -86,6 +57,26 @@ router.get('/faqs', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Internal Server Error' });
   }
+});
+
+// ============================================================================
+// 2. LIST VALID TICKET CATEGORIES (PUBLIC)
+// ============================================================================
+const VALID_CATEGORIES = [...new Set(Object.values(CATEGORY_MAP))];
+
+const CATEGORY_LABELS = {
+  payment: 'Payment & Billing',
+  order: 'Order & Booking',
+  technical: 'Technical Issue',
+  general: 'General Enquiry',
+  account: 'Account Management',
+};
+
+router.get('/categories', (_req, res) => {
+  res.json({
+    categories: VALID_CATEGORIES,
+    labels: CATEGORY_LABELS,
+  });
 });
 
 // ============================================================================
@@ -408,6 +399,8 @@ router.post('/tickets/:id/comments', authenticate, userLimiter, validateBody(cre
 // ============================================================================
 router.get('/tickets/:id/comments', authenticate, userLimiter, async (req, res) => {
   const ticketId = req.params.id;
+  const { sort } = req.query;
+  const isAscending = sort !== 'desc';
 
   try {
     const { data: ticket, error: fetchError } = await supabase
@@ -435,7 +428,7 @@ router.get('/tickets/:id/comments', authenticate, userLimiter, async (req, res) 
       .from('support_ticket_comments')
       .select('id, ticket_id, user_id, user_name, message, created_at')
       .eq('ticket_id', ticketId)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: isAscending });
 
     if (commentsError) {
       return res.status(500).json({

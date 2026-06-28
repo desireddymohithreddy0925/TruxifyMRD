@@ -1,8 +1,9 @@
 import express from 'express';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { userLimiter } from '../middleware/rateLimiter.js';
-import { validateBody, validateQuery } from '../middleware/validate.js';
-import { updateProfileSchema, updateWalletSchema, driverStatementSchema } from '../validation/requestSchemas.js';
+import { validateBody, validateQuery, validateParams } from '../middleware/validate.js';
+import { updateProfileSchema, updateWalletSchema, driverStatementSchema, paramIdSchema } from '../validation/requestSchemas.js';
+import logger from '../middleware/logger.js';
 import {
   getProfile,
   getCustomerStats,

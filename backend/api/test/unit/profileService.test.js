@@ -23,42 +23,40 @@ const mockEqStatsMaybeSingle = vi.fn();
 const mockEqDriverMaybeSingle = vi.fn();
 const supabaseRef = vi.hoisted(() => ({ current: null }));
 
-const mockSupabase = {
-    from: vi.fn((table) => {
-      if (table === 'profiles') {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              maybeSingle: mockEqProfileMaybeSingle,
-            })),
+const defaultMockSupabase = {
+  from: vi.fn((table) => {
+    if (table === 'profiles') {
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            maybeSingle: mockEqProfileMaybeSingle,
           })),
-        };
-      }
-      if (table === 'customer_stats') {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              maybeSingle: mockEqStatsMaybeSingle,
-            })),
+        })),
+      };
+    }
+    if (table === 'customer_stats') {
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            maybeSingle: mockEqStatsMaybeSingle,
           })),
-        };
-      }
-      if (table === 'driver_details') {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              maybeSingle: mockEqDriverMaybeSingle,
-            })),
+        })),
+      };
+    }
+    if (table === 'driver_details') {
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            maybeSingle: mockEqDriverMaybeSingle,
           })),
-        };
-      }
-      return { select: vi.fn() };
-    }),
+        })),
+      };
+    }
+    return { select: vi.fn() };
+  }),
 };
 
-function useMockSupabase() {
-  supabaseRef.current = mockSupabase;
-}
+const supabaseRef = { current: defaultMockSupabase };
 
 vi.mock('../../src/config/db.js', () => ({
   get supabase() {
@@ -70,10 +68,11 @@ import { getProfile, getCustomerStats, getDriverDetails } from '../../src/servic
 
 describe('getProfile', () => {
   beforeEach(() => {
-    supabaseRef.current = null;
+    supabaseRef.current = defaultMockSupabase;
   });
 
   it('throws when supabase is not configured', async () => {
+    supabaseRef.current = null;
     await expect(getProfile('user-123')).rejects.toThrow('Supabase client not configured');
   });
 
@@ -105,10 +104,11 @@ describe('getProfile', () => {
 
 describe('getCustomerStats', () => {
   beforeEach(() => {
-    supabaseRef.current = null;
+    supabaseRef.current = defaultMockSupabase;
   });
 
   it('throws when supabase is not configured', async () => {
+    supabaseRef.current = null;
     await expect(getCustomerStats('user-123')).rejects.toThrow('Supabase client not configured');
   });
 
@@ -140,10 +140,11 @@ describe('getCustomerStats', () => {
 
 describe('getDriverDetails', () => {
   beforeEach(() => {
-    supabaseRef.current = null;
+    supabaseRef.current = defaultMockSupabase;
   });
 
   it('throws when supabase is not configured', async () => {
+    supabaseRef.current = null;
     await expect(getDriverDetails('driver-789')).rejects.toThrow('Supabase client not configured');
   });
 

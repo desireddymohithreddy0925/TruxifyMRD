@@ -18,7 +18,9 @@ import {
   acceptBidParamsSchema,
   updateMilestoneSchema,
   verifyDeliverySchema,
-  predictDemandSchema
+  predictDemandSchema,
+  changeDropSchema,
+  cancelOrderSchema
 } from '../validation/requestSchemas.js';
 import { awardReputationPoints } from '../services/reputation.js';
 import { predictDemand, predictPrice } from '../services/ml.js';
