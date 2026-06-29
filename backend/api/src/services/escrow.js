@@ -163,7 +163,6 @@ export async function recordDepositTx(bookingId, txHash) {
   }
 
   // Verify the on-chain sender matches the customer address in the deposit call.
-  // This prevents an attacker from submitting a deposit from any wallet.
   if (tx.from.toLowerCase() !== txCustomer.toLowerCase()) {
     return { error: 'Transaction sender does not match registered customer wallet' };
   }
