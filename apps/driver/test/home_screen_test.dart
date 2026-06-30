@@ -109,8 +109,8 @@ Future<void> _pumpTransition(WidgetTester tester) async {
 
 void main() {
   // ADD THIS - Initialize test environment before all tests
-  setUpAll(() {
-    setupTestEnvironment();
+  setUpAll(() async {
+    await setupTestEnvironment();
   });
 
   // ADD THIS - Reset mocks between tests
