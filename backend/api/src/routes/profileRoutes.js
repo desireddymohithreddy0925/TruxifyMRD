@@ -307,9 +307,8 @@ router.get('/driver/statement', authenticate, requireRole(['driver']), userLimit
         total_net_earnings: totalNetEarnings
       },
       trips: tripsList
-    });
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     res.status(500).json({ error: 'Internal Server Error', details: err.message, stack: err.stack });
   }
 });

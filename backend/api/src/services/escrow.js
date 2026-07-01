@@ -35,7 +35,7 @@ const ESCROW_ABI = [
 const rpcUrl            = process.env.POLYGON_RPC_URL;
 const contractAddress   = process.env.ESCROW_CONTRACT_ADDRESS;
 const relayerPrivateKey = process.env.RELAYER_WALLET_PRIVATE_KEY;
-export const ESCROW_MATIC_PER_PAISA = parseFloat(process.env.ESCROW_MATIC_PER_PAISA ?? '0.01');
+export const ESCROW_MATIC_PER_PAISA = parseFloat(process.env.ESCROW_MATIC_PER_PAISA || '0.01');
 
 /** @type {ethers.Contract | null} */
 let escrowContract = null;
@@ -257,4 +257,12 @@ export async function confirmEscrowRefund(txHash) {
     throw new Error('Escrow refund transaction reverted or was not found.');
   }
   return receipt;
+}
+
+export function bookingIdFromUuid(orderId) {
+  return getEscrowBookingId(orderId);
+}
+
+export async function releaseEscrowFunds(orderDisplayId) {
+  return escrowRelease(orderDisplayId);
 }
