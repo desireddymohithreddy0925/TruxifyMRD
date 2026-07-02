@@ -546,6 +546,7 @@ export async function handleLocationPing(ws, data) {
   if (supabase && orderUUID) {
     if (!locationChannels.has(orderUUID)) {
       const channel = supabase.channel(`driver-location:${orderUUID}`);
+      channel.subscribe();
       locationChannels.set(orderUUID, channel);
     }
     const channel = locationChannels.get(orderUUID);
