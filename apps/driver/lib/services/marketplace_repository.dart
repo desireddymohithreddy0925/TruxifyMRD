@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
@@ -187,20 +188,22 @@ class MarketplaceRepository {
               final offer = _mapLoadOffer(newRecord);
               controller.add(offer);
             }
-          } catch (_) {
-            // Error mapping load offer
+          } catch (e, st) {
+            developer.log('Error mapping load offer', error: e, stackTrace: st);
           }
         },
       ).subscribe();
-    } catch (_) {
-      // Supabase/Realtime not available
+    } catch (e, st) {
+      developer.log('Supabase/Realtime not available', error: e, stackTrace: st);
     }
 
     controller.onCancel = () {
       if (channel != null) {
         try {
           _client.removeChannel(channel);
-        } catch (_) {}
+        } catch (e, st) {
+          developer.log('Error removing channel', error: e, stackTrace: st);
+        }
       }
       controller.close();
     };
