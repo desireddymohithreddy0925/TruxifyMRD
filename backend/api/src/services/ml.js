@@ -1,9 +1,11 @@
+import logger from '../middleware/logger.js';
+
 // Single source of truth for ML engine base URL
 const DEFAULT_ML_ENGINE_URL = 'http://localhost:8001';
 
 // Startup validation
 if (!process.env.ML_API_KEY) {
-    console.warn('[ML] WARNING: ML_API_KEY is not set. ML features will be unavailable.');
+    logger.warn('[ML] WARNING: ML_API_KEY is not set. ML features will be unavailable.');
 }
 
 /**
