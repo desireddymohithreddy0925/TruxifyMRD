@@ -71,6 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _activeTripPayout = '';
   bool _isLoadingLocation = true;
   String? _locationError;
+  final List<TripRecord> tripHistory = [];
 
   late final MarketplaceRepository _marketplaceRepo;
   StreamSubscription<LoadOffer>? _loadSubscription;
@@ -1359,7 +1360,7 @@ class _HomeScreenState extends State<HomeScreen> {
       decoration: BoxDecoration(
         color: Theme.of(context).brightness == Brightness.dark
             ? Theme.of(context).colorScheme.surfaceContainerHighest
-            : const Color(0xFFF9F7F7),
+            : TruxifyColors.background,
         border: Border.all(color: TruxifyColors.border),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -1391,7 +1392,7 @@ class _HomeScreenState extends State<HomeScreen> {
       decoration: BoxDecoration(
         color: Theme.of(context).brightness == Brightness.dark
             ? Theme.of(context).colorScheme.surfaceContainerHighest
-            : const Color(0xFFF9F7F7),
+            : TruxifyColors.background,
         border: Border.all(color: TruxifyColors.border),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -1497,7 +1498,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: _isTripStarted
-                      ? const Color(0xFFEAFCEE)
+                      ? TruxifyColors.successLight
                       : TruxifyColors.accentLight,
                   borderRadius: BorderRadius.circular(6),
                 ),

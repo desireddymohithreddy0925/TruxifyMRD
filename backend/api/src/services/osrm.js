@@ -5,8 +5,8 @@ const DEFAULT_OSRM_BASE_URL = 'https://router.project-osrm.org';
 const DEFAULT_TIMEOUT_MS = 1500;
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RETRY_BASE_DELAY_MS = 500;
-const CACHE_TTL_SECONDS = 3600;
-const ROUTE_CACHE_TTL_SECONDS = 300;
+const CACHE_TTL_SECONDS = 86400;
+const ROUTE_CACHE_TTL_SECONDS = 30;
 
 function parsePositiveNumber(value, fallback) {
   const parsed = Number(value);
