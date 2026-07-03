@@ -138,4 +138,11 @@ export function computeOrderPricing(input, rateCard = readRateCard()) {
   };
 }
 
+export function convertKmToMiles(km) {
+  if (typeof km !== 'number' || Number.isNaN(km)) {
+    throw new TypeError('km must be a number');
+  }
+  return km * 0.621371;
+}
+
 export const __testing = { DEFAULTS, readRateCard, EARTH_RADIUS_KM };
