@@ -624,10 +624,10 @@ async function flushTelemetryBuffer() {
           ? recordsToFlush.filter((_, i) => !err.writeErrors.some(e => e.index === i))
           : [];
         if (succeeded.length > 0) {
-          telemetryFlushBuffer = [...succeeded, ...telemetryFlushBuffer];
-          if (telemetryFlushBuffer.length > MAX_BUFFER_SIZE) {
-            const overflowDrop = telemetryFlushBuffer.length - MAX_BUFFER_SIZE;
-            telemetryFlushBuffer.splice(0, overflowDrop);
+          telemetryWriteBuffer = [...succeeded, ...telemetryWriteBuffer];
+          if (telemetryWriteBuffer.length > MAX_BUFFER_SIZE) {
+            const overflowDrop = telemetryWriteBuffer.length - MAX_BUFFER_SIZE;
+            telemetryWriteBuffer.splice(0, overflowDrop);
             telemetryTotalDropped += overflowDrop;
             telemetryOverflowDropped += overflowDrop;
             logger.warn(`[TRUXIFY BUFFER DROP] Dropped ${overflowDrop} oldest records due to capacity after partial insert.`);
