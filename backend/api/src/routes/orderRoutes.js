@@ -43,6 +43,7 @@ const OTP_MAX_FAILED_ATTEMPTS = parseInt(process.env.OTP_MAX_FAILED_ATTEMPTS || 
 const OTP_LOCKOUT_MINUTES = parseInt(process.env.OTP_LOCKOUT_MINUTES || '30', 10);
 const IN_MEMORY_OTP_MAP_MAX_SIZE = parseInt(process.env.IN_MEMORY_OTP_MAP_MAX_SIZE || '10000', 10);
 const DELIVERY_OTP_READY_STATUSES = new Set(['arriving']);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const inMemoryOtpFailedAttempts = new Map();
 
@@ -1589,13 +1590,17 @@ router.post('/predict-demand', authenticate, userLimiter, requireRole(['customer
 // ============================================================================
 router.get('/:id/driver-location', authenticate, userLimiter, telemetryLimiter, requireRole(['customer', 'driver']), validateParams(paramIdSchema), async (req, res) => {
   const orderId = req.params.id;
+  const isUuid = UUID_RE.test(orderId);
   try {
     // 1. Resolve order and check authentication / authorization
-    let { data: order, error: orderErr } = await supabase
-      .from('orders')
-      .select('id, customer_id, driver_id, status')
-      .eq('id', orderId)
-      .maybeSingle();
+    let { data: order, error: orderErr } = isUuid
+      ? await supabase
+          .from('orders')
+          .select('id, customer_id, driver_id, status')
+          .eq('id', orderId)
+          .maybeSingle()
+      : { data: null, error: null };
+
     if (!order && !orderErr) {
       const result = await supabase
         .from('orders')
