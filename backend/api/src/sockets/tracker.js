@@ -587,14 +587,16 @@ async function flushTelemetryBuffer() {
   if (flushMutex) return;
   flushMutex = true;
 
-  // Atomic double-buffer swap: copy flushBuffer, then swap references so active buffer
-  // becomes the new flush buffer and a fresh active buffer is created.
-  // Any concurrent push to the old active buffer is captured in the flush buffer for next cycle.
-  const recordsToFlush = telemetryFlushBuffer.length > 0 ? telemetryFlushBuffer : telemetryWriteBuffer;
-  if (telemetryFlushBuffer.length > 0) {
-    telemetryFlushBuffer = [];
-  }
-  telemetryFlushBuffer = telemetryWriteBuffer;
+  // Atomic buffer swap: take everything pending (retry queue first, then the
+  // active buffer) and reset both. Any ping that arrives while the insert is
+  // in flight lands in the fresh active buffer, and on failure the taken
+  // records are prepended back so oldest data retries first. Taking a merged
+  // snapshot (instead of aliasing the active buffer as the flush buffer)
+  // avoids re-queueing the same array twice on transient failures.
+  const recordsToFlush = telemetryFlushBuffer.length > 0
+    ? [...telemetryFlushBuffer, ...telemetryWriteBuffer]
+    : telemetryWriteBuffer;
+  telemetryFlushBuffer = [];
   telemetryWriteBuffer = [];
 
   flushMutex = false;
@@ -627,10 +629,10 @@ async function flushTelemetryBuffer() {
           ? recordsToFlush.filter((_, i) => !err.writeErrors.some(e => e.index === i))
           : [];
         if (succeeded.length > 0) {
-          telemetryFlushBuffer = [...succeeded, ...telemetryFlushBuffer];
-          if (telemetryFlushBuffer.length > MAX_BUFFER_SIZE) {
-            const overflowDrop = telemetryFlushBuffer.length - MAX_BUFFER_SIZE;
-            telemetryFlushBuffer.splice(0, overflowDrop);
+          telemetryWriteBuffer = [...succeeded, ...telemetryWriteBuffer];
+          if (telemetryWriteBuffer.length > MAX_BUFFER_SIZE) {
+            const overflowDrop = telemetryWriteBuffer.length - MAX_BUFFER_SIZE;
+            telemetryWriteBuffer.splice(0, overflowDrop);
             telemetryTotalDropped += overflowDrop;
             telemetryOverflowDropped += overflowDrop;
             logger.warn(`[TRUXIFY BUFFER DROP] Dropped ${overflowDrop} oldest records due to capacity after partial insert.`);
@@ -639,10 +641,10 @@ async function flushTelemetryBuffer() {
       } else {
         flushBackoffMs = Math.min(flushBackoffMs * 2, 60000);
         // Prepend failed records to the FRONT for oldest-first retry priority
-        telemetryFlushBuffer = [...recordsToFlush, ...telemetryFlushBuffer];
-        if (telemetryFlushBuffer.length > MAX_BUFFER_SIZE) {
-          const overflowDrop = telemetryFlushBuffer.length - MAX_BUFFER_SIZE;
-          telemetryFlushBuffer.splice(0, overflowDrop);
+        telemetryWriteBuffer = [...recordsToFlush, ...telemetryWriteBuffer];
+        if (telemetryWriteBuffer.length > MAX_BUFFER_SIZE) {
+          const overflowDrop = telemetryWriteBuffer.length - MAX_BUFFER_SIZE;
+          telemetryWriteBuffer.splice(0, overflowDrop);
           telemetryTotalDropped += overflowDrop;
           telemetryOverflowDropped += overflowDrop;
           logger.warn(`[TRUXIFY BUFFER DROP] Capacity limit: dropped ${overflowDrop} oldest records from retry merge. Total dropped: ${telemetryTotalDropped}`);
