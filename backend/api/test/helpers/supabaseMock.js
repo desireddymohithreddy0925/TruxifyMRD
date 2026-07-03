@@ -163,6 +163,14 @@ class SupabaseQueryBuilder {
     };
     this._calls.push(callRecord);
 
+    const matchingErrorIndex = this._programmed?.matchingErrors?.findIndex(item =>
+      item.table === this._table && item.mode === this._mode
+    ) ?? -1;
+    if (matchingErrorIndex !== -1) {
+      const [match] = this._programmed.matchingErrors.splice(matchingErrorIndex, 1);
+      return { data: null, error: match.error };
+    }
+
     // Programmed error path (e.g. simulate a supabase-side failure)
     if (this._programmed?.nextError) {
       const err = this._programmed.nextError;
@@ -303,6 +311,10 @@ export function createSupabaseMock(initialStore = {}) {
     store,
     calls,
     programError(msg = 'mock error')    { programmed.nextError    = { message: msg }; },
+    programErrorFor(table, mode, msg = 'mock error') {
+      programmed.matchingErrors ??= [];
+      programmed.matchingErrors.push({ table, mode, error: { message: msg } });
+    },
     programRpcError(msg = 'mock error') { programmed.nextRpcError = { message: msg }; },
     programData(data)                   { programmed.nextData = data; },
   };
