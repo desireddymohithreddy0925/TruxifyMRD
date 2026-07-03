@@ -48,6 +48,10 @@ describe('Trip Routes', () => {
     beforeEach(() => {
         m.store.trip_events = [];
         m.store.processed_batches = [];
+        // The batch route verifies trip ownership against orders/trips,
+        // so the fixture trip referenced by validPayload must exist.
+        m.store.trips = [{ id: 'trip-1', driver_id: 'driver-1' }];
+        m.store.orders = [];
         m.calls.length = 0;
     });
 
@@ -357,6 +361,15 @@ describe('GET /api/trips/:id/events', () => {
     process.env.NODE_ENV = 'test';
     m.store.trip_events = [];
     m.store.orders = [];
+    // The route resolves the trip in orders/trips before checking access,
+    // so each fixture trip referenced below must exist in the trips table.
+    m.store.trips = [
+      { id: 'trip-abc', driver_id: 'driver-1' },
+      { id: 'trip-admin', driver_id: 'driver-1' },
+      { id: 'trip-filter', driver_id: 'driver-1' },
+      { id: 'trip-sort', driver_id: 'driver-1' },
+      { id: 'trip-bbox', driver_id: 'driver-1' },
+    ];
     m.calls.length = 0;
   });
 
