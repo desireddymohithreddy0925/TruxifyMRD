@@ -191,11 +191,16 @@ export async function escrowRelease(orderDisplayId) {
     logger.warn(`[escrow] Failed to check escrow status for ${orderDisplayId}: ${err.message}, proceeding with release.`);
   }
 
-  const tx = await escrowContract.releasePayment(bookingId);
-  logger.info(`[escrow] releasePayment tx submitted: ${tx.hash} for booking ${orderDisplayId}`);
-  const receipt = await tx.wait(1);
-  logger.info(`[escrow] releasePayment confirmed for booking ${orderDisplayId} in block ${receipt.blockNumber}`);
-  return { txHash: receipt.hash, bookingId };
+  try {
+    const tx = await escrowContract.releaseFunds(bookingId);
+    logger.info(`[escrow] releaseFunds tx submitted: ${tx.hash} for booking ${orderDisplayId}`);
+    const receipt = await tx.wait(1);
+    logger.info(`[escrow] releaseFunds confirmed for booking ${orderDisplayId} in block ${receipt.blockNumber}`);
+    return { txHash: receipt.hash, bookingId };
+  } catch (err) {
+    logger.error(`[escrow] releaseFunds failed for booking ${orderDisplayId}: ${err.message}`);
+    return { txHash: null, bookingId, error: err.message };
+  }
 }
 
 /**
@@ -210,8 +215,14 @@ export async function submitEscrowRefund(orderDisplayId) {
     return { txHash: null, bookingId };
   }
 
-  const tx = await escrowContract.cancelBooking(bookingId);
-  logger.info(`[escrow] cancelBooking tx submitted: ${tx.hash} for booking ${orderDisplayId}`);
+  let tx;
+  try {
+    tx = await escrowContract.refundFunds(bookingId);
+    logger.info(`[escrow] refundFunds tx submitted: ${tx.hash} for booking ${orderDisplayId}`);
+  } catch (err) {
+    logger.error(`[escrow] refundFunds failed for booking ${orderDisplayId}: ${err.message}`);
+    return { txHash: null, bookingId, error: err.message };
+  }
   return {
     txHash: tx.hash,
     bookingId,
