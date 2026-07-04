@@ -33,6 +33,7 @@ import {
   ESCROW_MATIC_PER_PAISA,
 } from '../services/escrow.js';
 import { sendDeliveryOtpNotification, storeDeliveryOtp, getActiveDeliveryOtp, verifyDeliveryOtp, expireDeliveryOtps } from '../services/notificationService.js';
+import { requireIdempotency } from '../middleware/idempotency.js';
 import logger from '../middleware/logger.js';
 
 const router = express.Router();
@@ -984,7 +985,7 @@ router.put('/:id/milestones', authenticate, userLimiter, requireRole(['driver'])
 // ============================================================================
 // 13. VERIFY DELIVERY OTP AND RELEASE FUNDS (DRIVER)
 // ============================================================================
-router.post('/:id/verify-delivery', authenticate, userLimiter, requireRole(['driver']), verifyDeliveryLimiter, validateParams(paramIdSchema), validateBody(verifyDeliverySchema), async (req, res) => {
+router.post('/:id/verify-delivery', authenticate, userLimiter, requireRole(['driver']), verifyDeliveryLimiter, requireIdempotency(86400), validateParams(paramIdSchema), validateBody(verifyDeliverySchema), async (req, res) => {
   const orderId = req.params.id;
   const { otp } = req.body;
 
@@ -1014,7 +1015,14 @@ router.post('/:id/verify-delivery', authenticate, userLimiter, requireRole(['dri
     }
 
     const submittedHash = crypto.createHash('sha256').update(String(otp)).digest('hex');
-    if (otpRecord.otp_hash !== submittedHash) {
+    let isMatch = false;
+    if (otpRecord.otp_hash && otpRecord.otp_hash.length === submittedHash.length) {
+      isMatch = crypto.timingSafeEqual(
+        Buffer.from(otpRecord.otp_hash, 'hex'),
+        Buffer.from(submittedHash, 'hex')
+      );
+    }
+    if (!isMatch) {
       const count = await recordOtpFailure(orderId);
       const remaining = Math.max(0, OTP_MAX_FAILED_ATTEMPTS - count);
       const message = remaining > 0
