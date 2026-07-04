@@ -1,8 +1,25 @@
 import { Server } from "socket.io";
-import jwt from "jsonwebtoken";
 import logger from "../middleware/logger.js";
 import { GpsLog } from "../models/GpsLog.js";
 import { supabase } from "../config/db.js";
+
+// Telemetry Bulk Insert Buffer
+const BATCH_FLUSH_INTERVAL_MS = 2000;
+const gpsBuffer = [];
+
+setInterval(async () => {
+  if (gpsBuffer.length === 0) return;
+  
+  // Safely extract the current batch
+  const batch = gpsBuffer.splice(0, gpsBuffer.length);
+  
+  try {
+    await GpsLog.insertMany(batch, { ordered: false });
+    logger.debug(`[WS] Bulk inserted ${batch.length} GPS points into MongoDB.`);
+  } catch (error) {
+    logger.error({ error: error.message }, '[WS] Failed to bulk insert GPS buffer to MongoDB');
+  }
+}, BATCH_FLUSH_INTERVAL_MS);
 
 /**
  * Attaches the Truxify Live Location WebSocket server to an existing
@@ -81,8 +98,8 @@ export function attachLocationServer(httpServer) {
 
         const gpsTimestamp = timestamp ? new Date(timestamp) : new Date();
 
-        // 1. Persist GPS point to MongoDB time-series collection
-        await GpsLog.create({
+        // 1. Buffer GPS point to MongoDB time-series collection
+        gpsBuffer.push({
           bookingId,
           driverId,
           lat,
@@ -217,13 +234,30 @@ async function verifyDriverToken(socket, next) {
       return next();
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // Use the same Supabase auth verification as the REST API
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      return next(new Error("Invalid or expired authentication token"));
+    }
 
-    if (decoded.role !== "driver") {
+    // Look up profile to verify role and get driver ID
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, role')
+      .eq('id', user.id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (profileError || !profile) {
+      return next(new Error("Forbidden: user profile not found"));
+    }
+
+    if (profile.role !== 'driver') {
       return next(new Error("Forbidden: driver role required"));
     }
 
-    socket.data.driverId = decoded.sub;
+    socket.data.driverId = profile.id;
     socket.data.bookingId = socket.handshake.auth.bookingId;
 
     if (!socket.data.bookingId) {
@@ -252,13 +286,30 @@ async function verifyCustomerToken(socket, next) {
       return next();
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // Use the same Supabase auth verification as the REST API
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      return next(new Error("Invalid or expired authentication token"));
+    }
 
-    if (decoded.role !== "customer") {
+    // Look up profile to verify role and get customer ID
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, role')
+      .eq('id', user.id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (profileError || !profile) {
+      return next(new Error("Forbidden: user profile not found"));
+    }
+
+    if (profile.role !== 'customer') {
       return next(new Error("Forbidden: customer role required"));
     }
 
-    socket.data.customerId = decoded.sub;
+    socket.data.customerId = profile.id;
     next();
   } catch (error) {
     next(new Error(`Authentication failed: ${error.message}`));

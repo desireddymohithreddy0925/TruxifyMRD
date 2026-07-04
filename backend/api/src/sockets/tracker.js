@@ -587,12 +587,15 @@ async function flushTelemetryBuffer() {
   if (flushMutex) return;
   flushMutex = true;
 
-  const recordsToFlush = [...(telemetryFlushBuffer.length > 0 ? telemetryFlushBuffer : telemetryWriteBuffer)];
+  let recordsToFlush = [];
   if (telemetryFlushBuffer.length > 0) {
-    telemetryFlushBuffer = [];
+    recordsToFlush = [...telemetryFlushBuffer];
+    telemetryFlushBuffer = [...telemetryWriteBuffer];
+    telemetryWriteBuffer = [];
+  } else {
+    recordsToFlush = [...telemetryWriteBuffer];
+    telemetryWriteBuffer = [];
   }
-  telemetryFlushBuffer = telemetryWriteBuffer;
-  telemetryWriteBuffer = [];
 
   if (recordsToFlush.length === 0) {
     flushMutex = false;
@@ -636,12 +639,17 @@ async function flushTelemetryBuffer() {
       } else {
         flushBackoffMs = Math.min(flushBackoffMs * 2, 60000);
         telemetryFlushBuffer = [...recordsToFlush, ...telemetryFlushBuffer];
-        if (telemetryFlushBuffer.length > MAX_BUFFER_SIZE) {
-          const overflowDrop = telemetryFlushBuffer.length - MAX_BUFFER_SIZE;
-          telemetryFlushBuffer.splice(0, overflowDrop);
+        let overflowDrop = telemetryFlushBuffer.length + telemetryWriteBuffer.length - MAX_BUFFER_SIZE;
+        if (overflowDrop > 0) {
+          if (overflowDrop > telemetryFlushBuffer.length) {
+            telemetryWriteBuffer.splice(0, overflowDrop - telemetryFlushBuffer.length);
+            telemetryFlushBuffer = [];
+          } else {
+            telemetryFlushBuffer.splice(0, overflowDrop);
+          }
           telemetryTotalDropped += overflowDrop;
           telemetryOverflowDropped += overflowDrop;
-          logger.warn(`[TRUXIFY BUFFER DROP] Capacity limit: dropped ${overflowDrop} oldest records from retry merge. Total dropped: ${telemetryTotalDropped}`);
+          logger.warn(`[TRUXIFY BUFFER DROP] Capacity limit: dropped ${overflowDrop} oldest records from retry merge.`);
         }
       }
     } finally {
@@ -994,11 +1002,20 @@ export const __testing = {
   getTelemetryWriteBuffer() {
     return telemetryWriteBuffer;
   },
+  getTelemetryFlushBuffer() {
+    return telemetryFlushBuffer;
+  },
   setTelemetryWriteBuffer(records) {
     telemetryWriteBuffer = records;
   },
+  setTelemetryFlushBuffer(records) {
+    telemetryFlushBuffer = records;
+  },
   clearTelemetryWriteBuffer() {
     telemetryWriteBuffer = [];
+  },
+  clearTelemetryFlushBuffer() {
+    telemetryFlushBuffer = [];
   },
   getShutdownState() {
     return {
@@ -1027,3 +1044,5 @@ export const __testing = {
     return MAX_CONSECUTIVE_DROPS;
   },
 };
+
+// Fix: implemented exponential backoff (retry count * 1000ms) for Supabase channel reconnects.
