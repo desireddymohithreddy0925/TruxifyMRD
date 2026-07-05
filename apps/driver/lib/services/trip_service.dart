@@ -183,8 +183,7 @@ class TripService {
     );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      final body = jsonDecode(response.body) as Map<String, dynamic>?;
-      throw Exception(body?['error'] as String? ?? 'Failed to update online status');
+      throw Exception(_errorMessage(response, 'Failed to update online status'));
     }
   }
 
