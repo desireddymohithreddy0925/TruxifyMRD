@@ -1102,7 +1102,11 @@ class _TripsScreenState extends State<TripsScreen> {
             ],
           ),
           MarkerLayer(
-            markers: routePoints.map((point) {
+            markers: routePoints.where((p) =>
+              p == routePoints.first ||
+              p == routePoints.last ||
+              p['is_claimed'] == true
+            ).map((point) {
               return Marker(
                 point: ll.LatLng(
                   (point['latitude'] as num).toDouble(),
@@ -1215,10 +1219,10 @@ class _MarketplaceBody extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(error!, style: Theme.of(context).textTheme.bodyMedium),
                 const SizedBox(height: 14),
-                const OutlinedAccentButton(
-                  label: 'Pull to refresh',
-                  onPressed: null,
-                ),
+                Text('Could not load marketplace. Pull down to retry.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                    )),
               ],
             ),
           ),
