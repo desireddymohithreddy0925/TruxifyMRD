@@ -208,6 +208,10 @@ class TripService {
     }
   }
 
+  void dispose() {
+    _httpClient.close();
+  }
+
   String _errorMessage(http.Response response, String fallback) {
     try {
       final decoded = jsonDecode(response.body);
