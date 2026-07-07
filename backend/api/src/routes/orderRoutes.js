@@ -153,6 +153,13 @@ router.post('/', authenticate, userLimiter, requireRole(['customer']), validateB
     payment_method_id, upi_id
   } = req.body;
 
+  if (pickup_address && pickup_address.length > 200) {
+    return res.status(400).json({ error: 'pickup_address too long (max 200 chars)' });
+  }
+  if (drop_address && drop_address.length > 200) {
+    return res.status(400).json({ error: 'drop_address too long (max 200 chars)' });
+  }
+
   if (!pickup_address || pickup_lat == null || pickup_lng == null || !drop_address || drop_lat == null || drop_lng == null || !goods_type || weight_tonnes == null) {
     return res.status(400).json({ error: 'Missing required routing or cargo specification fields.' });
   }
