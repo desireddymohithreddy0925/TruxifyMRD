@@ -24,6 +24,7 @@ import truckRoutes from './routes/truckRoutes.js'
 import authRoutes from './routes/authRoutes.js'
 import healthRoutes from './routes/healthRoutes.js'
 import adminRoutes from './routes/adminRoutes.js'
+import lookupRoutes from './routes/lookupRoutes.js'
 
 import logger from './middleware/logger.js'
 import { setupSwagger } from './config/swagger.js'
@@ -145,16 +146,17 @@ app.use('/api/v1/trips', tripRoutes)
 // ============================================================================
 app.use('/api/health', healthRoutes)
 
-app.use('/api/orders', orderRoutes)
-app.use('/api/driver', driverRoutes)
-app.use('/api/loads', loadRoutes)
-app.use('/api/support', supportRoutes)
-app.use('/api/profile', profileRoutes)
-app.use('/api/devices', deviceRoutes)
-app.use('/api/driver/documents', documentRoutes)
-app.use('/api/trucks', truckRoutes)
-app.use('/api/auth', authLimiter, authRoutes)
-app.use('/api/v1/admin', adminRoutes)
+  app.use('/api/orders', orderRoutes)
+  app.use('/api/driver', driverRoutes)
+  app.use('/api/loads', loadRoutes)
+  app.use('/api/support', supportRoutes)
+  app.use('/api/profile', profileRoutes)
+  app.use('/api/devices', deviceRoutes)
+  app.use('/api/driver/documents', documentRoutes)
+  app.use('/api/trucks', truckRoutes)
+  app.use('/api/v1', lookupRoutes)
+  app.use('/api/auth', authLimiter, authRoutes)
+  app.use('/api/v1/admin', adminRoutes)
 
 // Setup Swagger Documentation
 setupSwagger(app)
