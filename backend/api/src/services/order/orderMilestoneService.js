@@ -9,6 +9,9 @@ import {
 } from '../notificationService.js';
 import { escrowRelease } from '../escrow.js';
 import { DomainError } from './bidAcceptanceService.js';
+import { OrderTimelineService } from './orderTimelineService.js';
+
+const orderTimelineService = new OrderTimelineService({ supabase, logger });
 
 export const OTP_TTL_MINUTES = parseInt(process.env.OTP_TTL_MINUTES || '15', 10);
 const OTP_MAX_FAILED_ATTEMPTS = parseInt(process.env.OTP_MAX_FAILED_ATTEMPTS || '5', 10);
@@ -104,12 +107,7 @@ export class OrderMilestoneService {
     if (orderErr || !order) throw new DomainError(404, { error: 'Order not found.' });
     if (order.driver_id !== driverId) throw new DomainError(403, { error: 'Access Denied: You are not assigned to this order.' });
 
-    const { data: timeline, error: tlErr } = await supabase
-      .from('order_timeline')
-      .select('milestone, sort_order, completed')
-      .eq('order_display_id', order.order_display_id)
-      .order('sort_order', { ascending: true });
-    if (tlErr) throw new DomainError(500, { error: 'Failed to fetch order timeline.' });
+    const timeline = await orderTimelineService.getOrderTimeline(order.order_display_id);
 
     const canonicalMilestones = new Set([...Object.keys(milestoneMap), 'Order Placed', 'Delivered']);
     const lastCompleted = [...timeline].reverse().find(t => t.completed && canonicalMilestones.has(t.milestone));
@@ -146,16 +144,11 @@ export class OrderMilestoneService {
       }
     }
 
-    const { error: timelineErr } = await supabase.from('order_timeline').update({ completed: true, milestone_time: new Date().toISOString() }).eq('order_display_id', order.order_display_id).eq('milestone', milestone);
-    if (timelineErr) throw new DomainError(500, { error: 'Failed to update order timeline.', details: timelineErr.message });
+    await orderTimelineService.completeMilestone(order.order_display_id, milestone);
 
     const { data: updatedOrder, error: updateErr } = await supabase.from('orders').update(updates).eq('id', orderId).select('*').single();
     if (updateErr) {
-      await supabase
-        .from('order_timeline')
-        .update({ completed: false, milestone_time: null })
-        .eq('order_display_id', order.order_display_id)
-        .eq('milestone', milestone);
+      await orderTimelineService.resetMilestone(order.order_display_id, milestone);
       throw new DomainError(500, { error: 'Failed to update order.', details: updateErr.message });
     }
 
