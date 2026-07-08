@@ -160,3 +160,17 @@ describe('GET /api/health/live', () => {
     expect(res.body.uptime).toBeTypeOf('number');
   });
 });
+
+describe('GET /api/health/ready', () => {
+  let app;
+
+  beforeEach(() => {
+    app = buildApp();
+  });
+
+  it('returns ready status with services information', async () => {
+    const res = await request(app).get('/api/health/ready');
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('ready');
+  });
+});
