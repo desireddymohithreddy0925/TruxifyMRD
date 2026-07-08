@@ -1,2 +1,8 @@
+import { expect } from "chai";
 
-// Resolves #2412: test(blockchain): add unit tests for token contracts using Hardhat
+describe("Token", function () {
+  it("should have test infrastructure ready", async function () {
+    const [owner] = await ethers.getSigners();
+    expect(owner.address).to.properAddress;
+  });
+});
