@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { paisaToMaticWei } from '../escrow.js';
 
 export class DomainError extends Error {
   constructor(status, payload) {
@@ -72,7 +72,7 @@ export class BidAcceptanceService {
     // Build the escrow deposit transaction
     let depositTx = null;
     let bookingId = null;
-    const amountWei = ethers.parseEther((bid.bid_amount / 100).toFixed(2).toString());
+    const amountWei = paisaToMaticWei(bid.bid_amount);
     try {
       const buildResult = await this.buildDepositTxFn(order.order_display_id, customerWallet, driverWallet, amountWei);
       depositTx = buildResult;

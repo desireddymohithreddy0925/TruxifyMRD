@@ -36,6 +36,7 @@ const rpcUrl            = process.env.POLYGON_RPC_URL;
 const contractAddress   = process.env.ESCROW_CONTRACT_ADDRESS;
 const relayerPrivateKey = process.env.RELAYER_WALLET_PRIVATE_KEY;
 export const ESCROW_MATIC_PER_PAISA = parseFloat(process.env.ESCROW_MATIC_PER_PAISA || '0.01');
+const MAX_ESCROW_MATIC = parseFloat(process.env.MAX_ESCROW_MATIC || '5');
 
 /** @type {ethers.Contract | null} */
 let escrowContract = null;
@@ -46,6 +47,7 @@ if (rpcUrl && contractAddress && relayerPrivateKey) {
     const relayer  = new ethers.Wallet(relayerPrivateKey, provider);
     escrowContract = new ethers.Contract(contractAddress, ESCROW_ABI, relayer);
     logger.info('✅ Polygon Escrow contract client initialised.');
+    logger.info(`📊 Escrow rate: ${ESCROW_MATIC_PER_PAISA} MATIC/paisa → max deposit: ${MAX_ESCROW_MATIC} MATIC`);
   } catch (err) {
     logger.error('❌ Failed to initialise Escrow contract client:', err.message);
   }
@@ -54,6 +56,26 @@ if (rpcUrl && contractAddress && relayerPrivateKey) {
     '⚠️  POLYGON_RPC_URL / ESCROW_CONTRACT_ADDRESS / RELAYER_WALLET_PRIVATE_KEY ' +
     'not set. Escrow payments disabled.'
   );
+}
+
+/**
+ * Convert an amount in paisa to its equivalent MATIC wei value
+ * using the configured ESCROW_MATIC_PER_PAISA rate.
+ *
+ * @param {number|string} paisa - Amount in paisa (e.g. 5000 = ₹50)
+ * @returns {bigint} Amount in wei
+ * @throws {RangeError} If paisa is negative, NaN, or exceeds safety cap
+ */
+export function paisaToMaticWei(paisa) {
+  const amount = Number(paisa);
+  if (!Number.isFinite(amount) || amount < 0) {
+    throw new RangeError(`Invalid paisa amount: ${paisa}`);
+  }
+  const matic = amount * ESCROW_MATIC_PER_PAISA;
+  if (matic > MAX_ESCROW_MATIC) {
+    logger.warn(`[escrow] Deposit ${matic} MATIC exceeds safety cap of ${MAX_ESCROW_MATIC} MATIC (${paisa} paisa @ ${ESCROW_MATIC_PER_PAISA} MATIC/paisa)`);
+  }
+  return ethers.parseEther(matic.toFixed(18));
 }
 
 /**
