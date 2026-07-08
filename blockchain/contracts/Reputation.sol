@@ -56,7 +56,7 @@ contract Reputation is Ownable, Pausable {
     function increaseReputation(address driver, uint256 points) external onlyRelayer whenNotPaused {
         require(driver != address(0), "Invalid driver");
         uint256 current = scores[driver];
-        if (current >= MAX_REPUTATION) return;
+        if (current >= MAX_REPUTATION) revert("already at max reputation");
         uint256 newScore = current + points;
         if (newScore > MAX_REPUTATION) {
             scores[driver] = MAX_REPUTATION;
