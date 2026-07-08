@@ -491,8 +491,6 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen>
   }
 
   Future<void> _showCallDriver() async {
-    final driverName = _driverName;
-    final truckNumber = _truckNumber;
     final phone = _driverPhone;
 
     if (phone == null || phone.isEmpty) {

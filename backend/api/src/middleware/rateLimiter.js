@@ -85,7 +85,7 @@ function buildStore(prefix) {
  * into one rate-limit bucket.
  */
 export function safeIpKeyGenerator(req) {
-  let ip = req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.connection?.remoteAddress || 'unknown';
+  let ip = req.ip || req.headers?.['x-forwarded-for'] || req.socket?.remoteAddress || req.connection?.remoteAddress || 'unknown';
   if (typeof ip === 'string') {
     ip = ip.replace(/^::ffff:/, '');
     if (ip === '::1') ip = '127.0.0.1';
