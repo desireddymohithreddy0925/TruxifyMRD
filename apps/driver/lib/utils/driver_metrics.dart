@@ -172,3 +172,12 @@ class DriverMetrics {
     return text.endsWith('.0') ? text.substring(0, text.length - 2) : text;
   }
 }
+
+class KpiCalculator {
+  static double acceptanceRate(int accepted, int total) => total > 0 ? (accepted / total) * 100 : 0;
+  static double earningsPerKm(double totalEarnings, double totalKm) => totalKm > 0 ? totalEarnings / totalKm : 0;
+  static double earningsPerHour(double totalEarnings, double totalHours) => totalHours > 0 ? totalEarnings / totalHours : 0;
+  static double completionRate(int completed, int total) => total > 0 ? (completed / total) * 100 : 0;
+  static double avgRating(double totalStars, int totalRatings) => totalRatings > 0 ? totalStars / totalRatings : 0;
+  static double utilizationRate(double drivingHours, double onlineHours) => onlineHours > 0 ? (drivingHours / onlineHours) * 100 : 0;
+}
