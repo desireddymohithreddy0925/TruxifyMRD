@@ -893,11 +893,10 @@ router.put('/:id/milestones', authenticate, userLimiter, requireRole(['driver'])
 router.post('/:id/verify-delivery', authenticate, userLimiter, requireRole(['driver']), verifyDeliveryLimiter, requireIdempotency(86400), validateParams(paramIdSchema), validateBody(verifyDeliverySchema), async (req, res) => {
   try {
     const { escrowUpdateFailed } = await deliveryVerificationService.verifyDelivery({
-      orderId,
+      orderId: req.params.id,
       driverId: req.user.id,
-      otp,
+      otp: req.body.otp,
     });
-    const { escrowUpdateFailed } = await orderLifecycleService.verifyDeliveryFn(req.params.id, req.user.id, req.body.otp);
 
     if (escrowUpdateFailed) {
       return res.status(202).json({

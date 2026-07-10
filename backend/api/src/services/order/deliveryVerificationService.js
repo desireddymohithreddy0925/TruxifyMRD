@@ -1,9 +1,7 @@
 import crypto from 'crypto';
-import { redisClient } from '../../config/db.js';
-import { DomainError } from './bidAcceptanceService.js';
-import { supabase, redisClient } from '../../config/db.js';
+import { supabase, redisClient, getMongoDb } from '../../config/db.js';
 import { DomainError } from './domainError.js';
-import {
+import { haversineKm, readRateCard } from '../../lib/pricing.js';
   sendDeliveryOtpNotification,
   storeDeliveryOtp,
   getActiveDeliveryOtp,
@@ -105,7 +103,7 @@ export class DeliveryVerificationService {
       });
     }
 
-    const { data: order, error: orderErr } = await this.orderRepository.findOrderById(orderId, 'id, order_display_id, driver_id, customer_id, escrow_status, escrow_release_attempts, status');
+    const { data: order, error: orderErr } = await this.orderRepository.findOrderById(orderId, 'id, order_display_id, driver_id, customer_id, escrow_status, escrow_release_attempts, status, toll_estimate, base_freight, platform_fee, total_amount');
 
     if (orderErr || !order) {
       throw new DomainError(404, { error: 'Order not found.' });
@@ -211,6 +209,37 @@ export class DeliveryVerificationService {
     return { generated: result.generated, otp: result.otp };
   }
 
+  async calculateDynamicToll(orderId, currentEstimate) {
+    try {
+      const mongoDb = getMongoDb();
+      if (!mongoDb) return currentEstimate;
+      
+      const trace = await mongoDb.collection('telemetry')
+        .find({ order_id: orderId })
+        .sort({ timestamp: 1 })
+        .toArray();
+      
+      if (!trace || trace.length < 2) return currentEstimate;
+      
+      let actualDistanceKm = 0;
+      for (let i = 1; i < trace.length; i++) {
+        const prev = trace[i-1];
+        const curr = trace[i];
+        if (prev.lat && prev.lng && curr.lat && curr.lng) {
+          actualDistanceKm += haversineKm(prev.lat, prev.lng, curr.lat, curr.lng);
+        }
+      }
+      
+      const rateCard = readRateCard();
+      const dynamicToll = Math.round(rateCard.tollPerKm * actualDistanceKm);
+      logger.info(`[Toll] Dynamic toll for order ${orderId} calculated as ${dynamicToll} (distance: ${actualDistanceKm.toFixed(2)}km)`);
+      return dynamicToll;
+    } catch (err) {
+      logger.error(`[Toll] Failed to calculate dynamic toll: ${err.message}`);
+      return currentEstimate;
+    }
+  }
+
   async verifyDelivery({ orderId, driverId, otp }) {
     const { order, otpRecord } = await this.validateDeliveryOtp({ orderId, driverId, otp });
 
@@ -221,14 +250,23 @@ export class DeliveryVerificationService {
     );
 
     if (guardResult.error) {
-      throw new DomainError(409, { error: 'Order was already cancelled or payment released.' });
+      if (guardResult.error.code === 'PGRST116') {
+        throw new DomainError(409, { error: 'Order was already cancelled or payment released.' });
+      }
+      throw new DomainError(500, { error: 'Failed to verify OTP.', details: guardResult.error.message });
     }
-  if (guardErr) {
-    if (guardErr.code === 'PGRST116') {
-      throw new DomainError(409, { error: 'Order was already cancelled or payment released.' });
+
+    // Dynamic Toll Calculation
+    const newTollEstimate = await this.calculateDynamicToll(orderId, order.toll_estimate);
+    if (newTollEstimate !== order.toll_estimate) {
+      const newTotalAmount = order.base_freight + newTollEstimate + order.platform_fee;
+      await this.orderRepository.updateOrder(orderId, {
+        toll_estimate: newTollEstimate,
+        total_amount: newTotalAmount
+      });
+      order.toll_estimate = newTollEstimate;
+      order.total_amount = newTotalAmount;
     }
-    throw new DomainError(500, { error: 'Failed to verify OTP.', details: guardErr.message });
-  }
 
     let releaseTxHash = null;
     let escrowAlreadyReleased = false;
