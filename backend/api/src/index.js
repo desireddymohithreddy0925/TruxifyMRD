@@ -42,6 +42,12 @@ import oracleRoutes from './routes/oracleRoutes.js'
 import shardRoutes from './routes/shardRoutes.js'
 import shardManager from './services/sharding/ShardManager.js'
 
+// ============================================================================
+// 🆕 WEBRTC P2P MESH NETWORK ROUTES
+// ============================================================================
+import webrtcRoutes from './routes/webrtcRoutes.js'
+import { initWebRTCSignaling, closeWebRTCSignaling } from './sockets/webrtc.js'
+
 import logger from './middleware/logger.js'
 import { setupSwagger } from './config/swagger.js'
 import { correlationIdMiddleware } from './middleware/correlationId.js'
@@ -105,6 +111,13 @@ if (!process.env.CHAINLINK_ENABLED && !process.env.BACKUP_ORACLE_ENABLED) {
 if (!process.env.SHARD_NORTH_HOST || !process.env.SHARD_SOUTH_HOST || 
     !process.env.SHARD_EAST_HOST || !process.env.SHARD_WEST_HOST) {
   logger.warn('⚠️ Shard hosts not fully configured. Using localhost defaults.')
+}
+
+// ============================================================================
+// 🆕 WEBRTC VALIDATION
+// ============================================================================
+if (!process.env.WEBRTC_ENABLED) {
+  logger.info('WebRTC signaling server will start by default')
 }
 
 // Validate escrow contract deployment — log warning if validation fails,
@@ -278,6 +291,22 @@ app.get('/api/shard/health', async (req, res) => {
   }
 })
 
+// ============================================================================
+// 🆕 WEBRTC P2P MESH NETWORK ROUTES
+// ============================================================================
+app.use('/api', webrtcRoutes)
+
+// 🆕 WebRTC Health Check Endpoint
+app.get('/api/webrtc/status', (req, res) => {
+  res.json({
+    status: 'healthy',
+    signaling: true,
+    version: '1.0.0',
+    websocketPath: '/webrtc',
+    timestamp: new Date().toISOString()
+  })
+})
+
 // Setup Swagger Documentation
 setupSwagger(app)
 
@@ -318,6 +347,12 @@ initWebSocketServer(server, orderRepository)
 initLocationServer(server)
 
 // ============================================================================
+// 🆕 WEBRTC SIGNALING SERVER INIT
+// ============================================================================
+initWebRTCSignaling(server)
+logger.info('🆕 WebRTC Signaling Server initialized at /webrtc')
+
+// ============================================================================
 // START SERVER
 // ============================================================================
 const PORT = process.env.PORT || 5000
@@ -327,6 +362,7 @@ server.listen(PORT, () => {
   logger.info(`🆕 Oracle Service enabled with threshold: ${process.env.ORACLE_CONSENSUS_THRESHOLD || 2}`)
   logger.info(`🆕 Verification endpoints available at /api/verify and /api/oracle`)
   logger.info(`🆕 Geographic Sharding enabled with 4 shards (North, South, East, West)`)
+  logger.info(`🆕 WebRTC P2P Mesh Network available at ws://localhost:${PORT}/webrtc`)
   startEscrowRefundReconciliation(orderRepository)
   startEscrowReleaseReconciliation()
   startReputationReconciliation()
@@ -376,11 +412,15 @@ async function shutdown (signal) {
     await closeLocationServer()
     logger.info('[shutdown] WebSocket resources closed.')
 
-    // 3. Close shard connections
+    // 3. Close WebRTC signaling server
+    await closeWebRTCSignaling()
+    logger.info('[shutdown] WebRTC signaling server closed.')
+
+    // 4. Close shard connections
     await shardManager.closeAllConnections()
     logger.info('[shutdown] Shard connections closed.')
 
-    // 4. Close database/cache connections
+    // 5. Close database/cache connections
     await closeDbConnections()
 
     logger.info('[shutdown] Clean exit.')
