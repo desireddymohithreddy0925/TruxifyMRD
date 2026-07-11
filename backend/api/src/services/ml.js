@@ -69,7 +69,7 @@ export async function predictDemand(features = {}) {
   guardMlApiKey();
   const cacheKey = JSON.stringify(features);
   const cached = demandCache.get(cacheKey);
-  if (cached) return cached;
+  if (cached !== undefined) return cached;
 
   const url = `${getBaseUrl()}/predict/demand`;
 
@@ -101,7 +101,7 @@ export async function predictPrice({
   
   const cacheKey = JSON.stringify({ distanceKm, cargoWeightKg, truckType, routeOrigin, routeDestination });
   const cached = priceCache.get(cacheKey);
-  if (cached) return cached;
+  if (cached !== undefined) return cached;
 
   const url = `${getBaseUrl()}/predict/price`;
 

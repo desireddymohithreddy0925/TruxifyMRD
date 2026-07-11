@@ -67,4 +67,27 @@ describe('LRUCache', () => {
     expect(cache.get('k1')).toBeUndefined();
     expect(cache.get('k2')).toBeUndefined();
   });
+
+  test('should support per-entry TTL override', () => {
+    const cache = new LRUCache(5, 60000); // 60s default
+    cache.set('a', 1, 500); // 500ms override
+    expect(cache.get('a')).toBe(1);
+    vi.advanceTimersByTime(600);
+    expect(cache.get('a')).toBeUndefined();
+  });
+
+  test('should update value and refresh TTL on existing key', () => {
+    const cache = new LRUCache(5, 1000);
+    cache.set('k', 'v1');
+    vi.advanceTimersByTime(800);
+    cache.set('k', 'v2'); // should refresh TTL
+    expect(cache.get('k')).toBe('v2');
+    vi.advanceTimersByTime(800);
+    expect(cache.get('k')).toBe('v2'); // still valid — TTL was reset
+  });
+
+  test('should throw on invalid capacity', () => {
+    expect(() => new LRUCache(0)).toThrow();
+    expect(() => new LRUCache(-1)).toThrow();
+  });
 });
