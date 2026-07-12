@@ -33,8 +33,11 @@ function safeSubtract(a, b) {
   return Number.isFinite(result) ? result : 0;
 }
 
+/** @type {number} Must match Reputation.sol MAX_REPUTATION constant */
+const MAX_REPUTATION = 10000;
+
 function clampReputation(value) {
-  return Math.max(0, Math.min(100, Number(value) || 0));
+  return Math.max(0, Math.min(MAX_REPUTATION, Number(value) || 0));
 }
 
 // Minimal ABI — only the subset the backend needs to call.
