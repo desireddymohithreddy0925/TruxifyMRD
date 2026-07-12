@@ -6,10 +6,10 @@ import { userLimiter } from '../middleware/rateLimiter.js';
 import { validateBody, validateParams } from '../middleware/validate.js';
 import logger from '../middleware/logger.js';
 import { createTicketSchema, updateTicketSchema, createTicketCommentSchema, paramIdSchema, uuidParamSchema } from '../validation/requestSchemas.js';
-import { startTimer, endTimer } from '../lib/routeTiming.js';
+
 
 const router = express.Router();
-const routeTimer = startTimer('supportRoutes');
+
 
 const FAQ_COLUMNS = 'id, question, answer, app_type, sort_order';
 const TICKET_COLUMNS = 'id, subject, description, category, status, created_at, updated_at';
@@ -585,7 +585,6 @@ router.get('/tickets/:id/comments', authenticate, userLimiter, validateParams(pa
   }
 });
 
-endTimer(routeTimer);
 export default router;
 
 // Resolves #2055: Load-based ticket assignment

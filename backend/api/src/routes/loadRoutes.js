@@ -8,10 +8,10 @@ import { loadFilterQuerySchema } from '../validation/loadSchemas.js';
 import { validateParams } from '../middleware/validate.js';
 import { paramIdSchema, uuidParamSchema } from '../validation/requestSchemas.js';
 import { escapeLike } from '../lib/escapeLike.js';
-import { startTimer, endTimer } from '../lib/routeTiming.js';
+
 
 const router = express.Router();
-const routeTimer = startTimer('loadRoutes');
+
 
 // Sanitize load filter query params to prevent injection attacks
 function sanitizeLoadFilters(query) {
@@ -233,6 +233,5 @@ router.get('/:id', authenticate, userLimiter, requirePolicy('load-offer:browse')
   }
 });
 
-endTimer(routeTimer);
 export default router;
 
