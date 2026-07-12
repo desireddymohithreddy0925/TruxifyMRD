@@ -95,6 +95,9 @@ class TripService {
     if (page == null || page < 1) {
       throw ArgumentError.value(cursor, 'cursor', 'must be a positive integer');
     }
+    if (limit < 1) {
+      throw ArgumentError.value(limit, 'limit', 'must be a positive integer');
+    }
     var path = '/api/driver/trips?page=$page&limit=$limit';
     if (status != null) {
       path += '&status=${Uri.encodeQueryComponent(status)}';
