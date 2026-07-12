@@ -16,11 +16,30 @@ class OrderService {
 
   String _encodePathSegment(String value) => Uri.encodeComponent(value);
 
+  List<Map<String, dynamic>> _mapList(dynamic value, String label) {
+    if (value is! List) {
+      throw StateError('Unexpected $label response type');
+    }
+
+    return value.map((item) {
+      if (item is Map<String, dynamic>) {
+        return item;
+      }
+      if (item is Map) {
+        return Map<String, dynamic>.from(item);
+      }
+      throw StateError('Unexpected $label item type');
+    }).toList(growable: false);
+  }
+
   List<Map<String, dynamic>> _historyFromResponse(dynamic body) {
     if (body is Map<String, dynamic>) {
-      return List<Map<String, dynamic>>.from(body['history'] as List? ?? []);
+      final history = body['history'];
+      return history == null
+          ? <Map<String, dynamic>>[]
+          : _mapList(history, 'order history');
     }
-    return List<Map<String, dynamic>>.from(body as List);
+    return _mapList(body, 'order history');
   }
 
   Future<String> createOrder({

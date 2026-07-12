@@ -76,6 +76,38 @@ void main() {
     expect(order404, isNull);
   });
 
+  test('fetchOrders accepts wrapped and bare history lists', () async {
+    when(() => apiClient.get('/api/orders/history'))
+        .thenAnswer((_) async => {'history': [{'id': 'ORD-1'}]});
+
+    expect(await orderService.fetchOrders(), [
+      {'id': 'ORD-1'},
+    ]);
+
+    when(() => apiClient.get('/api/orders/history'))
+        .thenAnswer((_) async => [{'id': 'ORD-2'}]);
+
+    expect(await orderService.fetchHistoryOrders(), [
+      {'id': 'ORD-2'},
+    ]);
+  });
+
+  test('fetchOrders rejects malformed history payloads', () async {
+    when(() => apiClient.get('/api/orders/history'))
+        .thenAnswer((_) async => {'history': 'not-a-list'});
+
+    await expectLater(
+      orderService.fetchOrders,
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          contains('Failed to fetch orders'),
+        ),
+      ),
+    );
+  });
+
   test('fetchTruckNumber encodes truck id path segment', () async {
     when(() => apiClient.get('/api/trucks/truck%2F123%23plate/number'))
         .thenAnswer((_) async => {'number_plate': 'MH-01-AB-1234'});
