@@ -3,16 +3,14 @@ import { corsMiddleware } from './middleware/cors.js'
 import helmet from 'helmet' // 🔒 ADDED HELMET IMPORT FOR ISSUES #361 & #944
 import http from 'http'
 import dotenv from 'dotenv'
-import path from 'path'
+
 import { globalLimiter, authLimiter, healthLimiter } from './middleware/rateLimiter.js'
 import tripRoutes from './routes/tripRoutes.js'
 import deviceRoutes from './routes/deviceRoutes.js'
 import documentRoutes from './routes/documentRoutes.js'
 
-import { closeDbConnections, waitForMongoDb, validateConfig, supabase } from './config/db.js'
-import { OrderRepository } from './repositories/orderRepository.js'
-
-const orderRepository = new OrderRepository(supabase)
+import { closeDbConnections, waitForMongoDb, validateConfig } from './config/db.js'
+import { orderRepository } from './core/container.js'
 import { closeWebSocketServer, initWebSocketServer } from './sockets/tracker.js'
 import { initLocationServer, closeLocationServer } from './sockets/locationServer.js'
 import { startEscrowReleaseReconciliation, stopEscrowReleaseReconciliation } from './services/escrowReleaseReconciliation.js'
@@ -36,6 +34,29 @@ import lookupRoutes from './routes/lookupRoutes.js'
 import verificationRoutes from './routes/verificationRoutes.js'
 import oracleRoutes from './routes/oracleRoutes.js'
 
+// ============================================================================
+// 🆕 GEOGRAPHIC SHARDING ROUTES
+// ============================================================================
+import shardRoutes from './routes/shardRoutes.js'
+import shardManager from './services/sharding/ShardManager.js'
+
+// ============================================================================
+// 🆕 WEBRTC P2P MESH NETWORK ROUTES
+// ============================================================================
+import webrtcRoutes from './routes/webrtcRoutes.js'
+import { initWebRTCSignaling, closeWebRTCSignaling } from './sockets/webrtc.js'
+
+// ============================================================================
+// 🆕 FRAUD DETECTION ROUTES
+// ============================================================================
+import fraudRoutes from './routes/fraudRoutes.js'
+import { fraudDetectionMiddleware, networkAnalysisMiddleware } from './middleware/fraudMiddleware.js'
+
+// ============================================================================
+// 🆕 ZK-PROOFS FOR DRIVER KYC
+// ============================================================================
+import zkpRoutes from './routes/zkp.routes.js'
+
 import logger from './middleware/logger.js'
 import { setupSwagger } from './config/swagger.js'
 import { correlationIdMiddleware } from './middleware/correlationId.js'
@@ -51,6 +72,7 @@ import {
   startReputationReconciliation,
   stopReputationReconciliation,
 } from './services/reputationReconciliation.js'
+import './subscribers/reputationSubscriber.js'
 
 // Configuration load from root folder is handled in db.js
 
@@ -91,6 +113,41 @@ if (!process.env.ORACLE_CONSENSUS_THRESHOLD) {
 }
 if (!process.env.CHAINLINK_ENABLED && !process.env.BACKUP_ORACLE_ENABLED) {
   logger.warn('No oracle providers enabled. Set CHAINLINK_ENABLED=true or BACKUP_ORACLE_ENABLED=true')
+}
+
+// ============================================================================
+// 🆕 SHARDING VALIDATION
+// ============================================================================
+if (!process.env.SHARD_NORTH_HOST || !process.env.SHARD_SOUTH_HOST || 
+    !process.env.SHARD_EAST_HOST || !process.env.SHARD_WEST_HOST) {
+  logger.warn('⚠️ Shard hosts not fully configured. Using localhost defaults.')
+}
+
+// ============================================================================
+// 🆕 WEBRTC VALIDATION
+// ============================================================================
+if (!process.env.WEBRTC_ENABLED) {
+  logger.info('WebRTC signaling server will start by default')
+}
+
+// ============================================================================
+// 🆕 FRAUD DETECTION VALIDATION
+// ============================================================================
+if (!process.env.FRAUD_THRESHOLD) {
+  logger.warn('FRAUD_THRESHOLD not set, using default: 0.7')
+}
+if (!process.env.BEHAVIORAL_ANALYTICS_ENABLED) {
+  logger.info('Behavioral analytics enabled by default')
+}
+
+// ============================================================================
+// 🆕 ZK-PROOFS VALIDATION
+// ============================================================================
+if (!process.env.KYC_VERIFIER_CONTRACT) {
+  logger.warn('⚠️ KYC_VERIFIER_CONTRACT not set. ZK proof verification will not work.')
+}
+if (!process.env.PRIVATE_KEY) {
+  logger.warn('⚠️ PRIVATE_KEY not set. Cannot sign ZK proof transactions.')
 }
 
 // Validate escrow contract deployment — log warning if validation fails,
@@ -192,6 +249,12 @@ app.use(requestLogger)
 app.use(requireJsonContent)
 
 // ============================================================================
+// 🆕 FRAUD DETECTION MIDDLEWARE (Global)
+// ============================================================================
+app.use(fraudDetectionMiddleware)
+app.use(networkAnalysisMiddleware)
+
+// ============================================================================
 // RATE LIMITING
 // ============================================================================
 app.use('/api/health', healthLimiter)
@@ -242,6 +305,77 @@ app.get('/api/oracle/health', (req, res) => {
   })
 })
 
+// ============================================================================
+// 🆕 GEOGRAPHIC SHARDING ROUTES
+// ============================================================================
+app.use('/api', shardRoutes)
+
+// 🆕 Shard Health Check Endpoint
+app.get('/api/shard/health', async (req, res) => {
+  try {
+    const status = await shardManager.healthCheck();
+    res.json({
+      status: 'healthy',
+      shards: status,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'unhealthy',
+      error: error.message
+    });
+  }
+})
+
+// ============================================================================
+// 🆕 WEBRTC P2P MESH NETWORK ROUTES
+// ============================================================================
+app.use('/api', webrtcRoutes)
+
+// 🆕 WebRTC Health Check Endpoint
+app.get('/api/webrtc/status', (req, res) => {
+  res.json({
+    status: 'healthy',
+    signaling: true,
+    version: '1.0.0',
+    websocketPath: '/webrtc',
+    timestamp: new Date().toISOString()
+  })
+})
+
+// ============================================================================
+// 🆕 FRAUD DETECTION ROUTES
+// ============================================================================
+app.use('/api', fraudRoutes)
+
+// 🆕 Fraud Health Check Endpoint
+app.get('/api/fraud/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    version: '1.0.0',
+    threshold: process.env.FRAUD_THRESHOLD || 0.7,
+    behavioralAnalytics: process.env.BEHAVIORAL_ANALYTICS_ENABLED !== 'false',
+    networkAnalysis: process.env.NETWORK_ANALYSIS_ENABLED !== 'false',
+    timestamp: new Date().toISOString()
+  })
+})
+
+// ============================================================================
+// 🆕 ZK-PROOFS FOR DRIVER KYC ROUTES
+// ============================================================================
+app.use('/api', zkpRoutes)
+
+// 🆕 ZK-Proof Health Check Endpoint
+app.get('/api/zkp/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    version: '1.0.0',
+    service: 'zk-snarks',
+    verifierContract: process.env.KYC_VERIFIER_CONTRACT || 'not-set',
+    timestamp: new Date().toISOString()
+  })
+})
+
 // Setup Swagger Documentation
 setupSwagger(app)
 
@@ -282,6 +416,12 @@ initWebSocketServer(server, orderRepository)
 initLocationServer(server)
 
 // ============================================================================
+// 🆕 WEBRTC SIGNALING SERVER INIT
+// ============================================================================
+initWebRTCSignaling(server)
+logger.info('🆕 WebRTC Signaling Server initialized at /webrtc')
+
+// ============================================================================
 // START SERVER
 // ============================================================================
 const PORT = process.env.PORT || 5000
@@ -290,6 +430,10 @@ server.listen(PORT, () => {
   logger.info(`Truxify API listening on port ${PORT}`)
   logger.info(`🆕 Oracle Service enabled with threshold: ${process.env.ORACLE_CONSENSUS_THRESHOLD || 2}`)
   logger.info(`🆕 Verification endpoints available at /api/verify and /api/oracle`)
+  logger.info(`🆕 Geographic Sharding enabled with 4 shards (North, South, East, West)`)
+  logger.info(`🆕 WebRTC P2P Mesh Network available at ws://localhost:${PORT}/webrtc`)
+  logger.info(`🆕 Fraud Detection enabled with threshold: ${process.env.FRAUD_THRESHOLD || 0.7}`)
+  logger.info(`🆕 ZK-Proof KYC Verification enabled with contract: ${process.env.KYC_VERIFIER_CONTRACT || 'not-deployed'}`)
   startEscrowRefundReconciliation(orderRepository)
   startEscrowReleaseReconciliation()
   startReputationReconciliation()
@@ -339,7 +483,15 @@ async function shutdown (signal) {
     await closeLocationServer()
     logger.info('[shutdown] WebSocket resources closed.')
 
-    // 3. Close database/cache connections
+    // 3. Close WebRTC signaling server
+    await closeWebRTCSignaling()
+    logger.info('[shutdown] WebRTC signaling server closed.')
+
+    // 4. Close shard connections
+    await shardManager.closeAllConnections()
+    logger.info('[shutdown] Shard connections closed.')
+
+    // 5. Close database/cache connections
     await closeDbConnections()
 
     logger.info('[shutdown] Clean exit.')

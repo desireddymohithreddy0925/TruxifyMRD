@@ -31,8 +31,11 @@ export async function reconcileFailedReputationUpdates() {
         }
       }, LEASE_EXTENSION_INTERVAL_MS);
     } catch (err) {
-      logger.error('[reputation-reconciliation] Failed to acquire Redis lock:', err.message);
+      logger.error('[reputation-reconciliation] Failed to acquire Redis lock, skipping batch:', err.message);
+      return;
     }
+  } else {
+    // Redis not configured — single-instance mode, use in-process guard only
   }
 
   if (!lockAcquired) {

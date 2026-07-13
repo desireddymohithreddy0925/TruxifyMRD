@@ -8,7 +8,7 @@ import {
   getActiveDeliveryOtp,
   verifyDeliveryOtp,
 } from '../notificationService.js';
-import { escrowRelease } from '../escrow.js';
+import { escrowRelease as defaultEscrowRelease } from '../escrow.js';
 import logger from '../../middleware/logger.js';
 
 const OTP_TTL_MINUTES = parseInt(process.env.OTP_TTL_MINUTES || '15', 10);
@@ -93,8 +93,15 @@ async function clearOtpState(orderId) {
 }
 
 export class DeliveryVerificationService {
-  constructor(orderRepository) {
+  constructor(orderRepository, deps = {}) {
     this.orderRepository = orderRepository;
+    this.notificationService = deps.notificationService || {
+      sendDeliveryOtpNotification,
+      storeDeliveryOtp,
+      getActiveDeliveryOtp,
+      verifyDeliveryOtp,
+    };
+    this.escrowReleaseFn = deps.escrowReleaseFn || defaultEscrowRelease;
   }
 
   async validateDeliveryOtp({ orderId, driverId, otp }) {
@@ -121,7 +128,7 @@ export class DeliveryVerificationService {
       });
     }
 
-    const otpRecord = await getActiveDeliveryOtp(orderId);
+    const otpRecord = await this.notificationService.getActiveDeliveryOtp(orderId);
     if (!otpRecord) {
       throw new DomainError(400, {
         error: 'OTP not available or has expired. Please request a new delivery OTP.',
@@ -153,7 +160,7 @@ export class DeliveryVerificationService {
 
   async completeDeliveryOtp({ otpRecordId, orderId }) {
     return measureExecution('DeliveryVerificationService.completeDeliveryOtp', async () => {
-    const verified = await verifyDeliveryOtp(otpRecordId);
+    const verified = await this.notificationService.verifyDeliveryOtp(otpRecordId);
     if (!verified) {
       logger.warn('[DeliveryVerificationService] Failed to mark OTP as verified for order', orderId);
     }
@@ -163,14 +170,14 @@ export class DeliveryVerificationService {
 
   async ensureDeliveryOtp({ orderId }) {
     return measureExecution('DeliveryVerificationService.ensureDeliveryOtp', async () => {
-    const activeOtp = await getActiveDeliveryOtp(orderId);
+    const activeOtp = await this.notificationService.getActiveDeliveryOtp(orderId);
     if (activeOtp) {
       logger.warn(`[DeliveryVerificationService] Driver attempted OTP regeneration for order ${orderId}`);
       return { generated: false, otp: null };
     }
 
     const otp = crypto.randomInt(100000, 1000000).toString();
-    const stored = await storeDeliveryOtp(orderId, otp, OTP_TTL_MINUTES);
+    const stored = await this.notificationService.storeDeliveryOtp(orderId, otp, OTP_TTL_MINUTES);
     if (!stored) {
       throw new Error('Failed to generate delivery OTP.');
     }
@@ -190,13 +197,13 @@ export class DeliveryVerificationService {
     }
 
     const otp = crypto.randomInt(100000, 1000000).toString();
-    const stored = await storeDeliveryOtp(orderId, otp, OTP_TTL_MINUTES);
+    const stored = await this.notificationService.storeDeliveryOtp(orderId, otp, OTP_TTL_MINUTES);
     if (!stored) {
       throw new Error('Failed to generate delivery OTP.');
     }
     await clearOtpState(orderId);
 
-    const notifResult = await sendDeliveryOtpNotification(customerId, orderDisplayId, otp);
+    const notifResult = await this.notificationService.sendDeliveryOtpNotification(customerId, orderDisplayId, otp);
     if (!notifResult.success) {
       logger.warn(`[DeliveryVerificationService] Resend OTP notification failed for order ${orderDisplayId} — FCM error: ${notifResult.fcm?.error || 'unknown'}`);
     }
@@ -207,7 +214,7 @@ export class DeliveryVerificationService {
 
   async sendOtpNotification({ orderId, customerId, orderDisplayId, otp }) {
     return measureExecution('DeliveryVerificationService.sendOtpNotification', async () => {
-    const notifResult = await sendDeliveryOtpNotification(customerId, orderDisplayId, otp);
+    const notifResult = await this.notificationService.sendDeliveryOtpNotification(customerId, orderDisplayId, otp);
     if (!notifResult.success) {
       logger.warn(`[DeliveryVerificationService] Delivery OTP notification failed for order ${orderDisplayId} — FCM error: ${notifResult.fcm?.error || 'unknown'}`);
       await this.orderRepository.updateOrder(orderId, {
@@ -236,20 +243,18 @@ export class DeliveryVerificationService {
     );
 
     if (guardResult.error) {
-      throw new DomainError(409, { error: 'Order was already cancelled or payment released.' });
+      const pgCode = guardResult.error.code;
+      if (pgCode === 'PGRST116') {
+        throw new DomainError(409, { error: 'Order was already cancelled or payment released.' });
+      }
+      throw new DomainError(500, { error: 'Failed to verify OTP.', details: guardResult.error.message });
     }
-  if (guardErr) {
-    if (guardErr.code === 'PGRST116') {
-      throw new DomainError(409, { error: 'Order was already cancelled or payment released.' });
-    }
-    throw new DomainError(500, { error: 'Failed to verify OTP.', details: guardErr.message });
-  }
 
     let releaseTxHash = null;
     let escrowAlreadyReleased = false;
     if (order.escrow_status === 'funded' || order.escrow_status === 'release_failed') {
       try {
-        const releaseResult = await escrowRelease(order.order_display_id);
+        const releaseResult = await this.escrowReleaseFn(order.order_display_id);
         if (releaseResult.txHash) {
           releaseTxHash = releaseResult.txHash;
         } else if (releaseResult.alreadyReleased) {

@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { paisaToMaticWei } from '../escrow.js';
 import { DomainError } from './domainError.js';
 import { measureExecution } from '../../core/performanceMetrics.js';
 
@@ -74,12 +74,16 @@ export class BidAcceptanceService {
     }
 
     // Build the escrow deposit transaction
-    let depositTx;
-    let bookingId;
-    const amountWei = ethers.parseEther((bid.bid_amount / 100).toFixed(2).toString());
-    const buildResult = await this.buildDepositTxFn(order.order_display_id, customerWallet, driverWallet, amountWei);
-    depositTx = buildResult;
-    bookingId = buildResult?.bookingId || `escrow:${order.order_display_id}`;
+    let depositTx = null;
+    let bookingId = null;
+    const amountWei = paisaToMaticWei(bid.bid_amount);
+    try {
+      const buildResult = await this.buildDepositTxFn(order.order_display_id, customerWallet, driverWallet, amountWei);
+      depositTx = buildResult;
+      bookingId = buildResult?.bookingId || `escrow:${order.order_display_id}`;
+    } catch (buildErr) {
+      throw buildErr; // Let it bubble up as a generic error to return 500
+    }
 
     // Guard against silent escrow disable: if buildDepositTx returned
     // null txData (contract not initialised), reject immediately.
@@ -131,12 +135,6 @@ export class BidAcceptanceService {
         details: rpcErr.message,
         recovery: 'The escrow deposit has been refunded. Please try again.'
       });
-    }
-
-    try {
-      await this.recordDepositTxFn(bookingId, depositTx?.hash || depositTx?.transactionHash || '');
-    } catch (recordErr) {
-      this.logger?.warn?.('[escrow] Failed to record deposit TX:', recordErr.message);
     }
 
     if (this.notificationDispatcher) {

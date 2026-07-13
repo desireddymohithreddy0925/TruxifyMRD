@@ -26,16 +26,14 @@ vi.mock('../../src/middleware/logger.js', () => ({
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
-import { predictDemand, predictPrice, mlBreaker } from '../../src/services/ml.js';
+import { predictDemand, predictPrice, __testing } from '../../src/services/ml.js';
 
 describe('ml service — predictDemand', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.ML_ENGINE_URL;
     process.env.ML_API_KEY = 'test_key';
-    if (mlBreaker) {
-      mlBreaker.disable();
-    }
+    __testing.demandCache.clear();
   });
 
   afterEach(() => {
@@ -137,9 +135,7 @@ describe('ml service — predictPrice', () => {
     delete process.env.ML_SERVICE_URL;
     delete process.env.ML_ENGINE_URL;
     process.env.ML_API_KEY = 'test_key';
-    if (mlBreaker) {
-      mlBreaker.disable();
-    }
+    __testing.priceCache.clear();
   });
 
   afterEach(() => {
