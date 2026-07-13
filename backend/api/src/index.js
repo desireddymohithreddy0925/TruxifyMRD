@@ -3,16 +3,14 @@ import { corsMiddleware } from './middleware/cors.js'
 import helmet from 'helmet' // 🔒 ADDED HELMET IMPORT FOR ISSUES #361 & #944
 import http from 'http'
 import dotenv from 'dotenv'
-import path from 'path'
+
 import { globalLimiter, authLimiter, healthLimiter } from './middleware/rateLimiter.js'
 import tripRoutes from './routes/tripRoutes.js'
 import deviceRoutes from './routes/deviceRoutes.js'
 import documentRoutes from './routes/documentRoutes.js'
 
-import { closeDbConnections, waitForMongoDb, validateConfig, supabase } from './config/db.js'
-import { OrderRepository } from './repositories/orderRepository.js'
-
-const orderRepository = new OrderRepository(supabase)
+import { closeDbConnections, waitForMongoDb, validateConfig } from './config/db.js'
+import { orderRepository } from './core/container.js'
 import { closeWebSocketServer, initWebSocketServer } from './sockets/tracker.js'
 import { initLocationServer, closeLocationServer } from './sockets/locationServer.js'
 import { startEscrowReleaseReconciliation, stopEscrowReleaseReconciliation } from './services/escrowReleaseReconciliation.js'
@@ -30,15 +28,36 @@ import healthRoutes from './routes/healthRoutes.js'
 import adminRoutes from './routes/adminRoutes.js'
 import lookupRoutes from './routes/lookupRoutes.js'
 
+// ============================================================================
+// 🆕 MULTI-PROVIDER ORACLE & VERIFICATION ROUTES
+// ============================================================================
+import verificationRoutes from './routes/verificationRoutes.js'
+import oracleRoutes from './routes/oracleRoutes.js'
+
+// ============================================================================
+// 🆕 GEOGRAPHIC SHARDING ROUTES
+// ============================================================================
+import shardRoutes from './routes/shardRoutes.js'
+import shardManager from './services/sharding/ShardManager.js'
+
+// ============================================================================
+// 🆕 WEBRTC P2P MESH NETWORK ROUTES
+// ============================================================================
+import webrtcRoutes from './routes/webrtcRoutes.js'
+import { initWebRTCSignaling, closeWebRTCSignaling } from './sockets/webrtc.js'
+
+// ============================================================================
+// 🆕 FRAUD DETECTION ROUTES
+// ============================================================================
+import fraudRoutes from './routes/fraudRoutes.js'
+import { fraudDetectionMiddleware, networkAnalysisMiddleware } from './middleware/fraudMiddleware.js'
+
 import logger from './middleware/logger.js'
 import { setupSwagger } from './config/swagger.js'
 import { correlationIdMiddleware } from './middleware/correlationId.js'
 import { requestIdMiddleware, requestLogger } from './middleware/requestId.js'
-<<<<<<< feature/request-scoped-order-cache
 import { requestCacheMiddleware } from './middleware/requestCacheMiddleware.js'
-=======
 import { requireJsonContent } from './middleware/contentType.js'
->>>>>>> main
 import { initSentry, flushSentry, sentryErrorHandler } from './middleware/sentry.js'
 import {
   startEscrowRefundReconciliation,
@@ -79,6 +98,42 @@ if (process.env.NODE_ENV === 'production' && (!process.env.POLYGON_RPC_URL || !p
 if (!process.env.DRIVER_LOGIN_OTP) {
   logger.warn('DRIVER_LOGIN_OTP is not set. Driver OTP login will be disabled until it is configured in production.')
 }
+
+// ============================================================================
+// 🆕 ORACLE VALIDATION
+// ============================================================================
+if (!process.env.ORACLE_CONSENSUS_THRESHOLD) {
+  logger.warn('ORACLE_CONSENSUS_THRESHOLD not set, using default: 2')
+}
+if (!process.env.CHAINLINK_ENABLED && !process.env.BACKUP_ORACLE_ENABLED) {
+  logger.warn('No oracle providers enabled. Set CHAINLINK_ENABLED=true or BACKUP_ORACLE_ENABLED=true')
+}
+
+// ============================================================================
+// 🆕 SHARDING VALIDATION
+// ============================================================================
+if (!process.env.SHARD_NORTH_HOST || !process.env.SHARD_SOUTH_HOST || 
+    !process.env.SHARD_EAST_HOST || !process.env.SHARD_WEST_HOST) {
+  logger.warn('⚠️ Shard hosts not fully configured. Using localhost defaults.')
+}
+
+// ============================================================================
+// 🆕 WEBRTC VALIDATION
+// ============================================================================
+if (!process.env.WEBRTC_ENABLED) {
+  logger.info('WebRTC signaling server will start by default')
+}
+
+// ============================================================================
+// 🆕 FRAUD DETECTION VALIDATION
+// ============================================================================
+if (!process.env.FRAUD_THRESHOLD) {
+  logger.warn('FRAUD_THRESHOLD not set, using default: 0.7')
+}
+if (!process.env.BEHAVIORAL_ANALYTICS_ENABLED) {
+  logger.info('Behavioral analytics enabled by default')
+}
+
 // Validate escrow contract deployment — log warning if validation fails,
 // but don't crash (non-escrow functionality should still work).
 validateEscrowSetup().then((valid) => {
@@ -178,6 +233,12 @@ app.use(requestLogger)
 app.use(requireJsonContent)
 
 // ============================================================================
+// 🆕 FRAUD DETECTION MIDDLEWARE (Global)
+// ============================================================================
+app.use(fraudDetectionMiddleware)
+app.use(networkAnalysisMiddleware)
+
+// ============================================================================
 // RATE LIMITING
 // ============================================================================
 app.use('/api/health', healthLimiter)
@@ -205,6 +266,83 @@ app.use('/api/trucks', truckRoutes)
 app.use('/api/v1', lookupRoutes)
 app.use('/api/auth', authLimiter, authRoutes)
 app.use('/api/v1/admin', adminRoutes)
+
+// ============================================================================
+// 🆕 MULTI-PROVIDER ORACLE & VERIFICATION ROUTES
+// ============================================================================
+app.use('/api/verify', verificationRoutes)
+app.use('/api/oracle', oracleRoutes)
+
+// 🆕 Oracle Health Check Endpoint
+app.get('/api/oracle/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    version: '1.0.0',
+    oracleEnabled: true,
+    consensusThreshold: process.env.ORACLE_CONSENSUS_THRESHOLD || 2,
+    providers: {
+      chainlink: process.env.CHAINLINK_ENABLED === 'true',
+      customVerifier: true,
+      backupOracle: process.env.BACKUP_ORACLE_ENABLED === 'true'
+    },
+    timestamp: new Date().toISOString()
+  })
+})
+
+// ============================================================================
+// 🆕 GEOGRAPHIC SHARDING ROUTES
+// ============================================================================
+app.use('/api', shardRoutes)
+
+// 🆕 Shard Health Check Endpoint
+app.get('/api/shard/health', async (req, res) => {
+  try {
+    const status = await shardManager.healthCheck();
+    res.json({
+      status: 'healthy',
+      shards: status,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'unhealthy',
+      error: error.message
+    });
+  }
+})
+
+// ============================================================================
+// 🆕 WEBRTC P2P MESH NETWORK ROUTES
+// ============================================================================
+app.use('/api', webrtcRoutes)
+
+// 🆕 WebRTC Health Check Endpoint
+app.get('/api/webrtc/status', (req, res) => {
+  res.json({
+    status: 'healthy',
+    signaling: true,
+    version: '1.0.0',
+    websocketPath: '/webrtc',
+    timestamp: new Date().toISOString()
+  })
+})
+
+// ============================================================================
+// 🆕 FRAUD DETECTION ROUTES
+// ============================================================================
+app.use('/api', fraudRoutes)
+
+// 🆕 Fraud Health Check Endpoint
+app.get('/api/fraud/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    version: '1.0.0',
+    threshold: process.env.FRAUD_THRESHOLD || 0.7,
+    behavioralAnalytics: process.env.BEHAVIORAL_ANALYTICS_ENABLED !== 'false',
+    networkAnalysis: process.env.NETWORK_ANALYSIS_ENABLED !== 'false',
+    timestamp: new Date().toISOString()
+  })
+})
 
 // Setup Swagger Documentation
 setupSwagger(app)
@@ -246,12 +384,23 @@ initWebSocketServer(server, orderRepository)
 initLocationServer(server)
 
 // ============================================================================
+// 🆕 WEBRTC SIGNALING SERVER INIT
+// ============================================================================
+initWebRTCSignaling(server)
+logger.info('🆕 WebRTC Signaling Server initialized at /webrtc')
+
+// ============================================================================
 // START SERVER
 // ============================================================================
 const PORT = process.env.PORT || 5000
 
 server.listen(PORT, () => {
   logger.info(`Truxify API listening on port ${PORT}`)
+  logger.info(`🆕 Oracle Service enabled with threshold: ${process.env.ORACLE_CONSENSUS_THRESHOLD || 2}`)
+  logger.info(`🆕 Verification endpoints available at /api/verify and /api/oracle`)
+  logger.info(`🆕 Geographic Sharding enabled with 4 shards (North, South, East, West)`)
+  logger.info(`🆕 WebRTC P2P Mesh Network available at ws://localhost:${PORT}/webrtc`)
+  logger.info(`🆕 Fraud Detection enabled with threshold: ${process.env.FRAUD_THRESHOLD || 0.7}`)
   startEscrowRefundReconciliation(orderRepository)
   startEscrowReleaseReconciliation()
   startReputationReconciliation()
@@ -301,7 +450,15 @@ async function shutdown (signal) {
     await closeLocationServer()
     logger.info('[shutdown] WebSocket resources closed.')
 
-    // 3. Close database/cache connections
+    // 3. Close WebRTC signaling server
+    await closeWebRTCSignaling()
+    logger.info('[shutdown] WebRTC signaling server closed.')
+
+    // 4. Close shard connections
+    await shardManager.closeAllConnections()
+    logger.info('[shutdown] Shard connections closed.')
+
+    // 5. Close database/cache connections
     await closeDbConnections()
 
     logger.info('[shutdown] Clean exit.')
