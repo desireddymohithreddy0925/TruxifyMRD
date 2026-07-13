@@ -23,6 +23,12 @@ function requireDriverRole(req, res, next) {
   next();
 }
 
+function parseIntegerQuery(value) {
+  if (value === undefined) return undefined;
+  if (!/^\d+$/.test(String(value))) return NaN;
+  return Number.parseInt(value, 10);
+}
+
 
 // ============================================================================
 // 1. GET DRIVER STATS (DRIVER)
@@ -196,8 +202,8 @@ router.get('/trips', authenticate, userLimiter, requirePolicy('driver:view-trips
   const { status } = req.query;
   const rawPage = req.query.page;
   const rawLimit = req.query.limit;
-  const parsedPage = parseInt(rawPage, 10);
-  const parsedLimit = parseInt(rawLimit, 10);
+  const parsedPage = parseIntegerQuery(rawPage);
+  const parsedLimit = parseIntegerQuery(rawLimit);
   if (rawPage !== undefined && (!Number.isInteger(parsedPage) || parsedPage < 1)) {
     return res.status(400).json({ error: 'page must be a positive integer' });
   }
