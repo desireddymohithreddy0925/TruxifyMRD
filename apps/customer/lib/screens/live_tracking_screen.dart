@@ -31,7 +31,7 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen>
   List<Map<String, dynamic>> _timeline = [];
   Map<String, dynamic>? _order;
   RealtimeChannel? _ordersChannel;
-  List<LatLng> _routePoints = const [_fallbackPickupPoint, _fallbackDropPoint];
+  List<LatLng> _routePoints = const [];
 
   static const String _loadingDriverText = 'Loading driver...';
   static const String _loadingTruckText = 'Loading truck...';
@@ -687,9 +687,6 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen>
     );
   }
 
-  static const LatLng _fallbackPickupPoint = LatLng(21.1702, 72.8311);
-  static const LatLng _fallbackDropPoint = LatLng(26.9124, 75.7873);
-
   Future<void> _loadTimeline() async {
     try {
       final timeline = await _orderService.fetchOrderTimeline(widget.orderId);
@@ -836,22 +833,25 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen>
                     AnimatedBuilder(
                       animation: _movementController,
                       builder: (context, _) {
+                        if (_routePoints.isEmpty) return const SizedBox.shrink();
                         return MarkerLayer(
                           markers: [
-                            Marker(
-                              point: _routePoints.first,
-                              width: 30,
-                              height: 30,
-                              child: const Icon(Icons.trip_origin_rounded,
-                                  color: Colors.blue, size: 22),
-                            ),
-                            Marker(
-                              point: _routePoints.last,
-                              width: 34,
-                              height: 34,
-                              child: const Icon(Icons.place_rounded,
-                                  color: Colors.redAccent, size: 26),
-                            ),
+                            if (_routePoints.isNotEmpty) ...[
+                              Marker(
+                                point: _routePoints.first,
+                                width: 30,
+                                height: 30,
+                                child: const Icon(Icons.trip_origin_rounded,
+                                    color: Colors.blue, size: 22),
+                              ),
+                              Marker(
+                                point: _routePoints.last,
+                                width: 34,
+                                height: 34,
+                                child: const Icon(Icons.place_rounded,
+                                    color: Colors.redAccent, size: 26),
+                              ),
+                            ],
                             ..._buildTruckMarkers(),
                           ],
                         );
