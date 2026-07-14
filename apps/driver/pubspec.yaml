@@ -13,6 +13,8 @@ dependencies:
   firebase_messaging: ^16.4.1
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   truxify_shared:
     path: ../../packages/truxify_shared
   mockito: ^5.4.4
@@ -46,5 +48,5 @@ dev_dependencies:
   firebase_core_platform_interface: any
 
 flutter:
+  generate: true
   uses-material-design: true
-  

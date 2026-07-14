@@ -403,7 +403,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(18, 0, 18, 6),
                 child: Text(
-                  'Offline mode • Last updated ${_formatLastUpdated(_lastUpdatedLabel)}',
+                  AppLocalizations.of(context)!.offlineModeLabel(_formatLastUpdated(_lastUpdatedLabel)),
                   style: Theme.of(context)
                       .textTheme
                       .bodySmall
@@ -423,7 +423,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 10),
             _SectionLabel(
-                text: 'Account',
+                text: AppLocalizations.of(context)!.account,
                 padding: const EdgeInsets.symmetric(horizontal: 16)),
             const SizedBox(height: 8),
             Padding(
@@ -432,20 +432,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   MenuItem(
                     icon: Icons.credit_card_rounded,
-                    label: 'Payment Methods',
+                    label: AppLocalizations.of(context)!.paymentMethods,
                     trailing: _defaultPaymentLabel,
                     onTap: () => Navigator.of(context).push(AppPageRoute(
                         builder: (_) => const PaymentMethodsScreen())),
                   ),
                   MenuItem(
                     icon: Icons.description_rounded,
-                    label: 'My Documents',
+                    label: AppLocalizations.of(context)!.myDocuments,
                     onTap: () => Navigator.of(context).push(AppPageRoute(
                         builder: (_) => const MyDocumentsScreen())),
                   ),
                   MenuItem(
                     icon: Icons.location_on_rounded,
-                    label: 'Saved Addresses',
+                    label: AppLocalizations.of(context)!.savedAddresses,
                     trailing: _defaultAddressLabel,
                     showDivider: false,
                     onTap: () => Navigator.of(context).push(AppPageRoute(
@@ -453,10 +453,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   MenuItem(
                     icon: Icons.account_balance_wallet_rounded,
-                    label: 'Wallet Address',
+                    label: AppLocalizations.of(context)!.walletAddressLabel,
                     trailing: _walletAddress.isNotEmpty
                         ? '${_walletAddress.substring(0, 6)}...${_walletAddress.substring(_walletAddress.length - 4)}'
-                        : 'Not set',
+                        : AppLocalizations.of(context)!.notSet,
                     showDivider: false,
                     onTap: () => _showWalletSheet(context),
                   ),
@@ -465,7 +465,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 12),
             _SectionLabel(
-                text: 'Preferences',
+                text: AppLocalizations.of(context)!.preferences,
                 padding: const EdgeInsets.symmetric(horizontal: 16)),
             const SizedBox(height: 8),
             Padding(
@@ -475,20 +475,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const _ThemeModeTile(),
                   MenuItem(
                     icon: Icons.language_rounded,
-                    label: 'Language',
+                    label: AppLocalizations.of(context)!.language,
                     trailing: 'English',
                     onTap: () => Navigator.of(context).push(
                         AppPageRoute(builder: (_) => const LanguageScreen())),
                   ),
                   MenuItem(
                     icon: Icons.help_outline_rounded,
-                    label: 'Help & Support',
+                    label: AppLocalizations.of(context)!.helpSupport,
                     onTap: () => Navigator.of(context).push(AppPageRoute(
                         builder: (_) => const HelpSupportScreen())),
                   ),
                   MenuItem(
                     icon: Icons.info_outline_rounded,
-                    label: 'About Truxify',
+                    label: AppLocalizations.of(context)!.aboutTruxify,
                     showDivider: false,
                     onTap: () => Navigator.of(context).push(
                         AppPageRoute(builder: (_) => const AboutScreen())),
@@ -503,7 +503,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   MenuItem(
                     icon: Icons.logout_rounded,
-                    label: 'Logout',
+                    label: AppLocalizations.of(context)!.logout,
                     iconBackgroundColor:
                         TruxifyColors.error.withValues(alpha: 0.12),
                     iconColor: TruxifyColors.error,
@@ -578,7 +578,7 @@ class _StatsCard extends StatelessWidget {
           Expanded(
             child: _StatColumn(
               value: '$totalOrders',
-              label: 'Orders',
+              label: AppLocalizations.of(context)!.ordersLabel,
               valueSize: 20,
               addRightDivider: true,
               dividerColor: dividerColor,
@@ -588,7 +588,7 @@ class _StatsCard extends StatelessWidget {
             child: _StatColumn(
               value:
                   '₹${(totalSaved / 100).toStringAsFixed(totalSaved % 100 == 0 ? 0 : 2)}',
-              label: 'Saved',
+              label: AppLocalizations.of(context)!.savedLabel,
               valueSize: 16,
               addRightDivider: true,
               dividerColor: dividerColor,
@@ -597,7 +597,7 @@ class _StatsCard extends StatelessWidget {
           Expanded(
             child: _StatColumn(
               value: '$co2ReducedKg',
-              label: 'kg CO2',
+              label: AppLocalizations.of(context)!.co2Label,
               valueSize: 20,
               dividerColor: dividerColor,
             ),

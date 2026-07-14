@@ -100,33 +100,11 @@ abstract class AppLocalizations {
 
   String get appTitle;
 
-  String get loginTitle;
-
-  String get bookLoadButton;
-
   String get loadingText;
 
-  String comingSoon(String title);
-
-  String greetingMessage(String greeting, String displayName);
-
-  String get noActiveShipments;
-
-  String get routeHistoryComingSoon;
-
-  String get walletAddressUpdated;
-
-  String get polygonWalletAddress;
-
-  String get saveWalletAddress;
-
-  String error(String errorMsg);
-
-  String get lightTheme;
-
-  String get darkTheme;
-
   String get retry;
+
+  String get error;
 
   String get cancel;
 
@@ -140,41 +118,31 @@ abstract class AppLocalizations {
 
   String get search;
 
-  String get welcomeBack;
+  String get welcomeDriver;
 
-  String get signInSubtitle;
+  String get logInToStartEarning;
 
   String get phoneNumber;
 
   String get sendOtp;
 
-  String get sendingOtp;
+  String get sending;
 
-  String get verifyingOtp;
-
-  String get verifyOtp;
-
-  String get loginWithBiometrics;
-
-  String get biometricsNotSupported;
-
-  String get biometricAuthSuccessful;
+  String get verificationFailed;
 
   String get pleaseEnterPhone;
 
-  String get phoneDigitsOnly;
+  String get enterValidPhone;
 
   String phoneMustBeExactDigits(int digitCount);
 
   String get phoneMustBeDigits;
 
-  String get verificationFailed;
-
-  String get phoneVerificationFailed;
-
   String get autoVerificationFailed;
 
-  String get failedToSendOtp;
+  String get protectedDriverAccess;
+
+  String get verifyOtp;
 
   String get enterOtp;
 
@@ -182,193 +150,231 @@ abstract class AppLocalizations {
 
   String get invalidOtp;
 
-  String get verificationSessionExpired;
+  String get codeExpired;
 
-  String get invalidVerificationCode;
+  String get verificationFailedMsg;
 
-  String get otpExpired;
+  String get couldNotVerifyOtp;
+
+  String get verifying;
 
   String get home;
 
-  String get findTrucks;
+  String get trips;
 
-  String get orders;
+  String get earnings;
 
   String get profile;
 
-  String get activeShipments;
+  String get offlineUsingCachedData;
 
-  String get seeAll;
+  String get newLoadAvailable;
 
-  String get bookATruck;
+  String get view;
 
-  String get active;
+  String get navigationActive;
 
-  String get moreStats;
+  String headingTo(String destination);
 
-  String get savings;
+  String get locating;
 
-  String get yourUsualRoutes;
+  String get locationUnavailable;
 
-  String get lastTruckLocation;
+  String get currentLocation;
 
-  String get couldNotLoadData;
+  String get tapToRefresh;
 
-  String get mlPoweredMatching;
+  String get fetchingLocation;
 
-  String get route;
+  String get whereAreYouHeading;
 
-  String get pickupLocation;
+  String get onlineAndReady;
 
-  String get dropLocation;
+  String get offline;
 
-  String get date;
+  String get offlineGoOnline;
 
-  String get time;
+  String get radarActiveFetching;
 
-  String get goodsDetails;
+  String get radarActiveLooking;
 
-  String get goodsType;
+  String get todayPay;
 
-  String get weightTonnes;
+  String get shiftHours;
 
-  String get lengthFt;
+  String get rating;
 
-  String get widthFt;
+  String get metricsUnavailable;
 
-  String get heightFt;
+  String get noDestinationAvailable;
 
-  String get stackable;
+  String get currentLocationUnavailable;
 
-  String get fragile;
+  String get unableToOpenGoogleMaps;
 
-  String get specialRequirements;
+  String get failedToGenerateRoute;
 
-  String get estimatedPriceRange;
+  String get enRoute;
 
-  String get stableThisWeek;
+  String get assignedLoad;
 
-  String get estimatingPrice;
+  String get distance;
 
-  String get estimateUnavailable;
+  String get estDuration;
 
-  String get enterRouteDetails;
+  String get estPayout;
 
-  String get basedOnCurrentDemand;
+  String get slideToCompleteTrip;
 
-  String get filterTrucks;
+  String get slideToStartTrip;
 
-  String get truckType;
+  String get cancelAssignment;
 
-  String get capacityTonnes;
+  String tripCompletedNetEarnings(String amount);
 
-  String get materialType;
+  String get failedToCompleteTrip;
 
-  String get today;
+  String get failedToStartTrip;
 
-  String get tomorrow;
+  String get tripCompleted;
 
-  String get selectPickupOnMap;
+  String get pleaseGoOnline;
 
-  String get selectDropOnMap;
+  String get noDestinationAvailable2;
 
-  String get temperatureControl;
+  String get locationPermissionRequired;
 
-  String get waterproofCover;
+  String get locationAccessDenied;
 
-  String get loadingHelp;
+  String get locationPermDenied;
 
-  String get loadingHelpNeeded;
-
-  String get other;
-
-  String get describeYourGoods;
-
-  String get activeTab;
-
-  String get historyTab;
-
-  String get searchOrdersHint;
-
-  String get noActiveOrders;
-
-  String get noHistoryOrders;
-
-  String get offlineMode;
-
-  String lastUpdated(String timeAgo);
-
-  String get driverAssigned;
-
-  String get inTransit;
-
-  String get paymentReleased;
-
-  String get delivered;
-
-  String get cancelled;
-
-  String get pending;
-
-  String get account;
-
-  String get preferences;
-
-  String get paymentMethods;
-
-  String get myDocuments;
-
-  String get savedAddresses;
-
-  String get walletAddressLabel;
-
-  String get notSet;
-
-  String get language;
-
-  String get helpSupport;
-
-  String get aboutTruxify;
-
-  String get logout;
-
-  String offlineModeLabel(String timeAgo);
-
-  String get ordersLabel;
-
-  String get savedLabel;
-
-  String get co2Label;
+  String get openSettings;
 
   String get editProfile;
 
-  String get fullName;
+  String get fullNames;
 
-  String get companyName;
+  String get phoneNumbers;
 
-  String get phone;
+  String get emailAddress;
 
-  String get enterFullName;
-
-  String get enterCompanyName;
-
-  String get enterPhoneNumber;
-
-  String get nameIsRequired;
-
-  String get companyNameIsRequired;
-
-  String get phoneNumberIsRequired;
-
-  String get saving;
+  String get vehicleRegistrationNumber;
 
   String get saveChanges;
 
   String get profileUpdatedSuccessfully;
 
-  String get failedToLoadProfile;
+  String get selectLanguage;
 
-  String get failedToUpdateProfile;
+  String get applyLanguage;
+
+  String get languageSwitched;
+
+  String get polygonWalletAddress;
+
+  String get saveWalletAddress;
+
+  String get walletAddressUpdated;
+
+  String get failedToUpdateWallet;
+
+  String get helpSupport;
+
+  String get browseFAQs;
+
+  String get instantAnswers;
+
+  String get aboutTruxifyDriverApp;
+
+  String get truxifyDescription;
+
+  String get documents;
+
+  String get driverLicensePermitPapers;
+
+  String get notifications;
+
+  String get viewTripAlerts;
+
+  String get walletAddress;
+
+  String get notSet;
+
+  String get languageLabel;
+
+  String get helpAndSupport247;
+
+  String get versionAndAppInfo;
+
+  String get logout;
+
+  String get logoutFailed;
+
+  String get myTrips;
+
+  String get marketplace;
+
+  String get sortTrips;
+
+  String get newestFirst;
+
+  String get oldestFirst;
+
+  String get highestEarnings;
+
+  String get lowestEarnings;
+
+  String get byStatus;
+
+  String get totalTrips;
+
+  String get totalEarned;
+
+  String get completion;
+
+  String get all;
+
+  String get active2;
+
+  String get completed2;
+
+  String get cancelled2;
+
+  String get failedToLoadTrips;
+
+  String get pullDownToRetry;
+
+  String get noTripsFound;
+
+  String get deliveryStops;
+
+  String get markCurrentStopCompleted;
+
+  String get activeStatus;
+
+  String get completedStatus;
+
+  String get cancelledStatus;
+
+  String get enRouteOpportunities;
+
+  String get pickupNearbyLoads;
+
+  String get marketplaceLoads;
+
+  String get availableLoadsYouCanBidFor;
+
+  String get couldNotLoadMarketplace;
+
+  String get pullToRefresh;
+
+  String get noLoadsAvailable;
+
+  String get bidSubmitted;
+
+  String get failedToSubmitBid;
+
+  String get thisLoadIsMissingId;
 }
 
 class _AppLocalizationsDelegate
@@ -389,6 +395,7 @@ class _AppLocalizationsDelegate
 }
 
 AppLocalizations lookupAppLocalizations(Locale locale) {
+  // Lookup logic when only language code is specified.
   switch (locale.languageCode) {
     case 'en':
       return AppLocalizationsEn();
