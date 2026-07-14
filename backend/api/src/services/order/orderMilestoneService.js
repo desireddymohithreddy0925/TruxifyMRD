@@ -18,9 +18,7 @@ import {
 } from './orderNotificationService.js';
 import { escrowRelease } from '../escrow.js';
 import { DomainError } from './domainError.js';
-import { OrderTimelineService } from './orderTimelineService.js';
-
-const orderTimelineService = new OrderTimelineService({ supabase, logger });
+import { measureExecution } from '../../core/performanceMetrics.js';
 
 export class OrderMilestoneService {
   constructor(args = {}) {
