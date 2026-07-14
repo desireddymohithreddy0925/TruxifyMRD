@@ -3,6 +3,20 @@ import { getWebRTCSignaling } from '../sockets/webrtc.js';
 
 const router = express.Router();
 
+function parseFiniteNumber(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function isLatitude(value) {
+  return value >= -90 && value <= 90;
+}
+
+function isLongitude(value) {
+  return value >= -180 && value <= 180;
+}
+
 // Get WebRTC stats
 router.get('/webrtc/stats', (req, res) => {
   const signaling = getWebRTCSignaling();
@@ -22,10 +36,28 @@ router.get('/webrtc/stats', (req, res) => {
 router.get('/webrtc/nearby', async (req, res) => {
   try {
     const { lat, lng, radius } = req.query;
-    if (!lat || !lng) {
+    const parsedLat = parseFiniteNumber(lat);
+    const parsedLng = parseFiniteNumber(lng);
+    const parsedRadius = radius === undefined ? 10 : parseFiniteNumber(radius);
+
+    if (parsedLat === null || parsedLng === null) {
       return res.status(400).json({
         success: false,
-        error: 'lat and lng required'
+        error: 'valid lat and lng required'
+      });
+    }
+
+    if (!isLatitude(parsedLat) || !isLongitude(parsedLng)) {
+      return res.status(400).json({
+        success: false,
+        error: 'lat or lng out of range'
+      });
+    }
+
+    if (parsedRadius === null || parsedRadius <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'radius must be a positive number'
       });
     }
 
@@ -38,9 +70,9 @@ router.get('/webrtc/nearby', async (req, res) => {
     }
 
     const peers = await signaling.getPeersNearLocation(
-      parseFloat(lat),
-      parseFloat(lng),
-      parseFloat(radius) || 10
+      parsedLat,
+      parsedLng,
+      parsedRadius
     );
 
     res.json({
