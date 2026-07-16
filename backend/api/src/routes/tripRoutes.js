@@ -269,11 +269,16 @@ router.get('/:id/events', authenticate, userLimiter, validateParams(uuidParamSch
     const driverUserId = events[0]?.user_id;
 
     // 3. Also look up the linked order to check customer access
-    const { data: order } = await supabase
+    const { data: order, error: orderErr } = await supabase
       .from('orders')
       .select('id, driver_id, customer_id')
       .eq('id', tripId)
       .maybeSingle();
+
+    if (orderErr) {
+      logger.error(`[TripEvents] Failed to look up order for trip ${tripId}: ${orderErr.message}`);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
 
     // 4. Access control
     if (req.user.role !== 'admin') {
