@@ -383,7 +383,6 @@ router.patch('/tickets/:id', authenticate, userLimiter, validateBody(updateTicke
 // ============================================================================
 // 7. LIST ALL TICKETS (ADMIN ONLY)
 // ============================================================================
-router.get('/admin/tickets', authenticate, adminRateLimiter, requireRole(['admin']), async (req, res) => {
 router.get('/admin/tickets', authenticate, userLimiter, requirePolicy('ticket:admin-view-all'), async (req, res) => {
   const { status, category, user_id, page = '1', limit = '20' } = req.query;
   const parsedPage = parsePositiveInteger(page, 1, 'page');
