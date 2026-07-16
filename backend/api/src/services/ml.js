@@ -120,28 +120,6 @@ export async function predictPrice({
       route_destination: routeDestination,
   };
 
-    const raw = await handleResponse(response);
-
-    const result = validatePricePrediction(raw);
-    if (!result.ok) {
-        logger.warn({
-            reason: result.reason,
-            detail: result.detail,
-            response_keys: raw && typeof raw === 'object' ? Object.keys(raw) : typeof raw,
-        }, '[ML] Price prediction rejected by validator');
-        throw new Error(`[ML] Invalid prediction: ${result.reason} — ${result.detail}`);
-    }
-
-    logger.debug({
-        estimated_price_inr: result.validated.estimated_price,
-        confidence: result.validated.confidence,
-    }, '[ML] Price prediction validated successfully');
-
-    return {
-        ...result.validated,
-        estimatedPricePaisa: convertToPaisa(result.validated.estimated_price),
-        estimatedPriceInr: result.validated.estimated_price,
-    };
   const response = await fetch(url, {
       method: 'POST',
       headers: getHeaders(),
@@ -149,9 +127,30 @@ export async function predictPrice({
       signal: AbortSignal.timeout(5000),
   });
 
-  const result = await handleResponse(response);
-  priceCache.set(cacheKey, result);
-  return result;
+  const raw = await handleResponse(response);
+
+  const result = validatePricePrediction(raw);
+  if (!result.ok) {
+      logger.warn({
+          reason: result.reason,
+          detail: result.detail,
+          response_keys: raw && typeof raw === 'object' ? Object.keys(raw) : typeof raw,
+      }, '[ML] Price prediction rejected by validator');
+      throw new Error(`[ML] Invalid prediction: ${result.reason} — ${result.detail}`);
+  }
+
+  logger.debug({
+      estimated_price_inr: result.validated.estimated_price,
+      confidence: result.validated.confidence,
+  }, '[ML] Price prediction validated successfully');
+
+  const validated = {
+      ...result.validated,
+      estimatedPricePaisa: convertToPaisa(result.validated.estimated_price),
+      estimatedPriceInr: result.validated.estimated_price,
+  };
+  priceCache.set(cacheKey, validated);
+  return validated;
 }
 
 /**
