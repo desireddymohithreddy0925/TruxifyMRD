@@ -232,7 +232,11 @@ class WebRTCSignalingServer {
     if (peer) {
       const meshId = peer.meshId;
       if (this.meshes.has(meshId)) {
-        this.meshes.get(meshId).delete(peerId);
+        const mesh = this.meshes.get(meshId);
+        mesh.delete(peerId);
+        if (mesh.size === 0) {
+          this.meshes.delete(meshId);
+        }
       }
       this.peers.delete(peerId);
       logger.info(`🔌 Peer ${peerId} disconnected`);
@@ -284,14 +288,27 @@ class WebRTCSignalingServer {
   }
 
   startDiscovery() {
-    // Broadcast discovery every 30 seconds
-    setInterval(() => {
+    this._discoveryInterval = setInterval(() => {
       for (const [peerId, peer] of this.peers) {
         if (peer.ws.readyState === 1) {
           this.sendPeerList(peerId);
         }
       }
     }, 30000);
+  }
+
+  destroy() {
+    if (this._discoveryInterval) {
+      clearInterval(this._discoveryInterval);
+      this._discoveryInterval = null;
+    }
+    for (const [peerId, peer] of this.peers) {
+      try { peer.ws.close(1001, 'Server shutting down'); } catch {}
+    }
+    this.peers.clear();
+    this.meshes.clear();
+    this.wss.close();
+    this.redis.disconnect();
   }
 
   async getPeersNearLocation(lat, lng, radius = 10) {
