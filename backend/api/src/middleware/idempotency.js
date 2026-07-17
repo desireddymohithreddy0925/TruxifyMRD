@@ -38,7 +38,7 @@ function isCacheable(statusCode) {
 
 function cacheKey(req, idempotencyKey) {
   const identity = req.user?.id || 'anonymous';
-  return `idempotency:${identity}:${idempotencyKey}`;
+  return `idempotency:${req.method}:${req.path}:${identity}:${idempotencyKey}`;
 }
 
 function readAndParse(str) {
